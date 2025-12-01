@@ -1,0 +1,351 @@
+# SeekerEats DoorDash Relay API
+
+A minimal Node.js/Express API relay service for the SeekerEats Solana Mobile hackathon app. Relays delivery requests to the DoorDash Drive API (sandbox) using the official quote workflow.
+
+**Includes a web UI for testing the delivery quote workflow locally.**
+
+## Architecture
+
+```
+Android App (Solana Mobile)
+    ↓
+SeekerEats Relay API (Express)
+    ↓
+DoorDash Drive API (Sandbox)
+```
+
+## Features
+
+- **Quote Delivery**: `POST /relay/delivery` – Get quote (fee, times) for a delivery route
+- **Accept Quote**: `POST /relay/delivery/:id/accept` – Accept quote and create actual delivery
+- **Get Status**: `GET /relay/delivery/:external_delivery_id` – Fetch delivery status in real-time
+- **Web UI**: Open `http://localhost:3000/` to test the workflow visually
+- **Auth**: All relay endpoints require `X-Relay-Secret` header
+- **Health Check**: `GET /health` – No auth required
+
+## Setup
+
+### Prerequisites
+- Node.js 18+
+- npm
+
+### Installation
+
+```bash
+cd seekereats-relay
+npm install
+```
+
+### Configuration
+
+1. Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+2. Add your DoorDash credentials to `.env`:
+```env
+DOORDASH_DEVELOPER_ID=your_id
+DOORDASH_KEY_ID=your_key_id
+DOORDASH_SIGNING_SECRET=your_base64_secret
+RELAY_SECRET=your_relay_secret
+PORT=3000
+```
+
+**Get DoorDash credentials from:** https://developer.doordash.com/portal/integration/drive/credentials
+
+## Development
+
+### Run locally
+
+1. **Compile TypeScript:**
+```bash
+npm run build
+```
+
+2. **Start the server:**
+```bash
+npm run dev
+```
+
+Server runs at `http://localhost:3000`
+
+### Using the Web UI (Recommended)
+
+**Easiest way to test locally:**
+
+1. Open your browser to `http://localhost:3000/`
+2. Click **"Auto Fill Test Data"** to populate form with test addresses
+3. Click **"Get Quote"** to fetch a delivery quote
+4. Click **"Accept Quote"** to confirm and create the delivery
+5. Use the **DoorDash Delivery Simulator** to advance the order status (see below)
+6. Click **"Refresh Status"** to see live delivery updates
+
+The UI displays API responses and real-time status changes.
+
+### Testing via cURL
+
+**Step 1: Get a Quote**
+```bash
+curl -X POST http://localhost:3000/relay/delivery \
+  -H "Content-Type: application/json" \
+  -H "X-Relay-Secret: seekereats-hackathon-secret-2024" \
+  -d '{
+    "pickup_address": "1000 4th Ave, Seattle, WA, 98104",
+    "pickup_business_name": "Test Pickup",
+    "pickup_phone_number": "+16505555555",
+    "dropoff_address": "1201 3rd Ave, Seattle, WA, 98101",
+    "dropoff_business_name": "Test Dropoff",
+    "dropoff_phone_number": "+16505555555",
+    "order_value": 1999
+  }'
+```
+
+Response includes `external_delivery_id`, `fee`, and estimated times.
+
+**Step 2: Accept the Quote**
+```bash
+curl -X POST http://localhost:3000/relay/delivery/{DELIVERY_ID}/accept \
+  -H "Content-Type: application/json" \
+  -H "X-Relay-Secret: seekereats-hackathon-secret-2024" \
+  -d '{}'
+```
+
+**Step 3: Advance Order Status (via DoorDash Simulator)**
+Go to the **DoorDash Developer Portal** → **Delivery Simulator** and search for your `external_delivery_id`. Manually transition the delivery through states:
+- `created` → `enroute_to_pickup` → `arrived_at_pickup` → `picked_up` → `arrived_at_dropoff` → `delivered`
+
+**Step 4: Get Delivery Status**
+```bash
+curl -X GET http://localhost:3000/relay/delivery/{DELIVERY_ID} \
+  -H "X-Relay-Secret: seekereats-hackathon-secret-2024"
+```
+
+The status will reflect changes made in the DoorDash Simulator.
+
+**Health Check (no auth):**
+```bash
+curl http://localhost:3000/health
+```
+
+## API Endpoints
+
+All endpoints require the `X-Relay-Secret` header.
+
+### POST /relay/delivery
+Get a delivery quote to check if the route is serviceable and retrieve estimated fee/times.
+
+**Headers:**
+- `X-Relay-Secret: <relay_secret>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "pickup_address": "1000 4th Ave, Seattle, WA, 98104",
+  "pickup_business_name": "Restaurant Name",
+  "pickup_phone_number": "+16505555555",
+  "pickup_instructions": "Optional instructions",
+  "dropoff_address": "1201 3rd Ave, Seattle, WA, 98101",
+  "dropoff_business_name": "Destination Name",
+  "dropoff_phone_number": "+16505555555",
+  "dropoff_instructions": "Optional instructions",
+  "order_value": 1999
+}
+```
+
+**Response (200):**
+```json
+{
+  "external_delivery_id": "ff30d4eb-8b9c-4b5a-9b36-a60ea98a032e",
+  "delivery_status": "quote",
+  "fee": 975,
+  "currency": "USD",
+  "pickup_address": "1000 4th Ave, Seattle WA 98104-1109, United States",
+  "dropoff_address": "1201 3rd Ave, Seattle WA 98101-1003, United States",
+  "pickup_time_estimated": "2025-12-01T14:40:00Z",
+  "dropoff_time_estimated": "2025-12-01T14:50:00Z"
+}
+```
+
+### POST /relay/delivery/:external_delivery_id/accept
+Accept the quote and create the actual delivery. **Must be called within 5 minutes of getting the quote.**
+
+**Headers:**
+- `X-Relay-Secret: <relay_secret>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "tip": 600
+}
+```
+
+Optional: Include `tip` (in cents) to add a tip when accepting.
+
+**Response (201):**
+```json
+{
+  "external_delivery_id": "ff30d4eb-8b9c-4b5a-9b36-a60ea98a032e",
+  "delivery_status": "created",
+  "fee": 975,
+  "tracking_url": "https://doordash.com/tracking?id=...",
+  "pickup_address": "1000 4th Ave, Seattle WA 98104-1109, United States",
+  "dropoff_address": "1201 3rd Ave, Seattle WA 98101-1003, United States"
+}
+```
+
+### GET /relay/delivery/:external_delivery_id
+Get current delivery status. Status progresses as the order moves through fulfillment.
+
+**Headers:**
+- `X-Relay-Secret: <relay_secret>`
+
+**Response (200):**
+```json
+{
+  "external_delivery_id": "ff30d4eb-8b9c-4b5a-9b36-a60ea98a032e",
+  "delivery_status": "picked_up",
+  "fee": 975,
+  "tracking_url": "https://doordash.com/tracking?id=...",
+  "pickup_address": "1000 4th Ave, Seattle WA 98104-1109, United States",
+  "dropoff_address": "1201 3rd Ave, Seattle WA 98101-1003, United States"
+}
+```
+
+**Possible Status Values:**
+- `quote` - Quote received (before accepting)
+- `created` - Delivery confirmed, waiting for Dasher
+- `enroute_to_pickup` - Dasher is heading to pickup location
+- `arrived_at_pickup` - Dasher arrived at pickup
+- `picked_up` - Order picked up and heading to dropoff
+- `arrived_at_dropoff` - Dasher arrived at dropoff location
+- `delivered` - Order delivered
+
+## Deployment (Railway)
+
+### 1. Create Git Repository
+```bash
+git init
+git add .
+git commit -m "Initial commit: SeekerEats relay service"
+git remote add origin https://github.com/yourusername/seekereats-relay.git
+git push -u origin main
+```
+
+### 2. Connect to Railway
+1. Go to https://railway.app
+2. Create new project → GitHub
+3. Select this repo
+4. Railway auto-detects Node.js
+
+### 3. Set Environment Variables in Railway Dashboard
+```
+DOORDASH_DEVELOPER_ID=...
+DOORDASH_KEY_ID=...
+DOORDASH_SIGNING_SECRET=...
+RELAY_SECRET=...
+PORT=3000
+NODE_ENV=production
+```
+
+### 4. Deploy
+Railway auto-deploys on git push.
+
+## DoorDash Drive API Workflow
+
+This relay implements the **official DoorDash Drive v2 quote workflow**:
+
+1. **Get Quote** - `POST /drive/v2/quotes` - Check if route is serviceable, get fee & times
+2. **Accept Quote** - `POST /drive/v2/quotes/{id}/accept` - Confirm and create actual delivery
+3. **Get Status** - `GET /drive/v2/deliveries/{id}` - Poll for real-time delivery updates
+4. **Auth** - Bearer JWT (HS256 signed) with custom `dd-ver: DD-JWT-V1` header
+
+**API Base URL:** `https://openapi.doordash.com`
+
+## Advancing Order Status in Testing
+
+Order status does **not** advance automatically. Use the **DoorDash Delivery Simulator** to manually transition states:
+
+1. Go to https://developer.doordash.com/portal/integration/drive/
+2. Find **Delivery Simulator** in the dashboard
+3. Search for your `external_delivery_id`
+4. Manually transition through states:
+   - `created` → `enroute_to_pickup` → `arrived_at_pickup` → `picked_up` → `arrived_at_dropoff` → `delivered`
+5. Each transition is instant - perfect for testing your mobile app's status updates
+6. Deliveries auto-cancel after 1 hour of inactivity
+
+## Tech Stack
+
+- **Language:** TypeScript
+- **Framework:** Express.js
+- **Auth:** JWT (jsonwebtoken)
+- **HTTP:** axios
+- **Environment:** dotenv
+
+## Security Notes
+
+- Never commit `.env` file (in `.gitignore`)
+- Use strong `RELAY_SECRET` values
+- Only expose this API to trusted services (internal network)
+- DoorDash signing secret is base64-encoded
+
+## For Android Frontend Developers
+
+This relay service provides three main API endpoints your Android app should call:
+
+1. **Get Quote** - Show the user the delivery fee & estimated pickup/dropoff times before they confirm
+2. **Accept Quote** - Create the actual delivery when user confirms
+3. **Get Status** - Poll for delivery status updates (use these to show real-time tracking UI)
+
+All requests require the `X-Relay-Secret` header:
+```
+X-Relay-Secret: seekereats-hackathon-secret-2024
+```
+
+**Example workflow in your Android app:**
+
+```
+User clicks "Request Delivery"
+    ↓
+GET QUOTE → Display fee, times, serviceable status
+    ↓
+User clicks "Confirm"
+    ↓
+ACCEPT QUOTE → Get tracking URL
+    ↓
+Poll GET STATUS every 5-10 seconds
+    ↓
+Update UI with status (enroute, arrived, picked_up, delivered)
+```
+
+For integration questions or API schema details, check the full endpoint documentation above.
+
+## Hackathon Timeline
+
+- **Phase 0:** ✅ Validated sample app with credentials
+- **Phase 1:** ✅ Project setup & dependencies
+- **Phase 2:** ✅ Core modules (config, client, routes)
+- **Phase 3:** ✅ Tested quote workflow locally
+- **Phase 4:** ✅ Created web UI for testing
+- **Phase 5:** 🔄 Deploy to Railway & share with team
+
+## Support & Troubleshooting
+
+**Common Issues:**
+
+- **"Missing required fields"** - Check all required fields in request body (pickup/dropoff address, phone, etc.)
+- **"API Offline"** - Verify `npm run dev` is running and API is on `http://localhost:3000`
+- **Quote returns error about address** - The address may not be serviceable in DoorDash's coverage area. Try Seattle addresses (included in test data).
+- **Status not updating** - Remember to use DoorDash Delivery Simulator to manually advance states. Status doesn't auto-advance.
+
+**Resources:**
+
+- [DoorDash Drive API Docs](https://developer.doordash.com/en-US/docs/drive)
+- [Delivery Simulator](https://developer.doordash.com/portal/integration/drive/)
+- Full API reference above in this README
+
+---
+
+Built for **SeekerEats** — Solana Mobile hackathon 2024

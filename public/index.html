@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeekerEats - Delivery Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍕 SeekerEats Delivery Demo</h1>
+            <p>Test the DoorDash Drive API quote workflow</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Step 1: Request Quote -->
+            <section id="quote-section" class="section active">
+                <div class="section-header">
+                    <h2>Step 1: Request a Delivery Quote</h2>
+                    <button type="button" id="autofill-btn" class="btn btn-secondary" style="margin-left: auto;">Auto Fill Test Data</button>
+                </div>
+                <form id="quote-form">
+                    <div class="form-group">
+                        <label>Pickup Address *</label>
+                        <input type="text" name="pickup_address" placeholder="e.g., 1000 4th Ave, Seattle, WA 98104" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pickup Business Name *</label>
+                        <input type="text" name="pickup_business_name" placeholder="e.g., Test Restaurant" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pickup Phone *</label>
+                        <input type="tel" name="pickup_phone_number" placeholder="+16505555555" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Pickup Instructions</label>
+                        <input type="text" name="pickup_instructions" placeholder="Optional - e.g., Ring doorbell">
+                    </div>
+
+                    <hr>
+
+                    <div class="form-group">
+                        <label>Dropoff Address *</label>
+                        <input type="text" name="dropoff_address" placeholder="e.g., 1201 3rd Ave, Seattle, WA 98101" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Dropoff Business Name *</label>
+                        <input type="text" name="dropoff_business_name" placeholder="e.g., Destination" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Dropoff Phone *</label>
+                        <input type="tel" name="dropoff_phone_number" placeholder="+16505555555" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Dropoff Instructions</label>
+                        <input type="text" name="dropoff_instructions" placeholder="Optional - e.g., Leave at door">
+                    </div>
+
+                    <hr>
+
+                    <div class="form-group">
+                        <label>Order Value (cents) *</label>
+                        <input type="number" name="order_value" placeholder="1999" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Get Quote</button>
+                </form>
+            </section>
+
+            <!-- Step 2: Quote Results -->
+            <section id="quote-result-section" class="section">
+                <h2>Quote Details</h2>
+                <div id="quote-result" class="result-box">
+                    <p class="loading">Waiting for quote...</p>
+                </div>
+                <div class="button-group">
+                    <button id="accept-quote-btn" class="btn btn-success" disabled>Accept Quote</button>
+                    <button id="back-to-quote-btn" class="btn btn-secondary">Back</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Delivery Status -->
+            <section id="delivery-status-section" class="section">
+                <h2>Delivery Status</h2>
+                <div id="delivery-status" class="result-box">
+                    <p class="loading">Waiting for delivery update...</p>
+                </div>
+                <div class="button-group">
+                    <button id="refresh-status-btn" class="btn btn-primary">Refresh Status</button>
+                    <button id="new-delivery-btn" class="btn btn-secondary">New Delivery</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="error" style="display: none;"></div>
+
+        <!-- Status Indicator -->
+        <footer>
+            <p id="api-status">API: <span class="dot offline"></span> Offline</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
