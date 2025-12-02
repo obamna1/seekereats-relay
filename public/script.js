@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'https://seekereats-relay-backend-production.up.railway.app';
 const RELAY_SECRET = 'seekereats-hackathon-secret-2024';
 
 // State
