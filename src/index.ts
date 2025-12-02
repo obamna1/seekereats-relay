@@ -11,6 +11,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Root endpoint - API info
+app.get('/', (req: Request, res: Response) => {
+  res.status(200).json({
+    api: 'SeekerEats Relay API',
+    status: 'online',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health',
+      quote: 'POST /relay/delivery',
+      acceptQuote: 'POST /relay/delivery/{id}/accept',
+      deliveryStatus: 'GET /relay/delivery/{id}',
+      phoneCall: 'POST /relay/order-call',
+      callStatus: 'GET /relay/order-call/{call_sid}/status',
+      config: 'GET /relay/config'
+    },
+    note: 'All /relay endpoints require X-Relay-Secret header'
+  });
+});
+
 // Health check endpoint (no auth required)
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
