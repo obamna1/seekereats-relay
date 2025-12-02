@@ -2,9 +2,17 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { DoorDashClient, QuotePayload, AcceptQuotePayload } from '../clients/DoorDashClient';
 import config from '../config/doorDashConfig';
+import twilioConfig from '../config/twilioConfig';
+import twilio from 'twilio';
 
 const router = Router();
 const doorDashClient = new DoorDashClient(config);
+
+// Initialize Twilio client
+const twilioClient = twilio(twilioConfig.accountSid, twilioConfig.authToken);
+
+// In-memory call store (for demo purposes)
+const callStore: { [key: string]: any } = {};
 
 /**
  * POST /relay/delivery
@@ -146,6 +154,108 @@ router.post('/delivery/:external_delivery_id/accept', async (req: Request, res: 
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message || 'Failed to accept delivery quote',
+    });
+  }
+});
+
+/**
+ * POST /relay/order-call
+ * Initiate a phone call using Twilio with TwiML text-to-speech
+ */
+router.post('/order-call', async (req: Request, res: Response) => {
+  try {
+    const { delivery_id, phone_number, order_details, dropoff_address } = req.body;
+
+    // Validate required fields
+    if (!phone_number || !order_details) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'phone_number and order_details are required',
+      });
+      return;
+    }
+
+    // Create TwiML message with text-to-speech
+    const message = `Hello, I would like to place an order for ${order_details}${dropoff_address ? `, delivered to ${dropoff_address}` : ''}`;
+
+    // Initiate the call with simple text-to-speech
+    const call = await twilioClient.calls.create({
+      from: twilioConfig.phoneNumber!,
+      to: phone_number,
+      twiml: `<Response><Say>${message}</Say></Response>`,
+    });
+
+    // Store call info in memory
+    callStore[call.sid] = {
+      sid: call.sid,
+      phone_number,
+      delivery_id,
+      order_details,
+      status: 'initiated',
+      created_at: new Date().toISOString(),
+    };
+
+    res.status(200).json({
+      call_sid: call.sid,
+      status: 'initiated',
+      phone_number,
+      message: 'Call initiated successfully',
+    });
+  } catch (error: any) {
+    console.error('Error initiating call:', error.message);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to initiate call',
+    });
+  }
+});
+
+/**
+ * GET /relay/config
+ * Return frontend configuration (phone numbers for calls)
+ */
+router.get('/config', (req: Request, res: Response) => {
+  res.status(200).json({
+    test_phone_number: twilioConfig.testPhoneNumber,
+  });
+});
+
+/**
+ * GET /relay/order-call/:call_sid/status
+ * Get the status of a Twilio call
+ */
+router.get('/order-call/:call_sid/status', async (req: Request, res: Response) => {
+  try {
+    const { call_sid } = req.params;
+
+    if (!call_sid) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'call_sid is required',
+      });
+      return;
+    }
+
+    // Get call details from Twilio
+    const call = await twilioClient.calls(call_sid).fetch();
+
+    // Get stored call info
+    const storedCall = callStore[call_sid] || {};
+
+    res.status(200).json({
+      call_sid: call.sid,
+      status: call.status,
+      phone_number: storedCall.phone_number,
+      delivery_id: storedCall.delivery_id,
+      duration: call.duration,
+      created_at: call.dateCreated,
+      end_time: call.dateUpdated,
+    });
+  } catch (error: any) {
+    console.error('Error fetching call status:', error.message);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to fetch call status',
     });
   }
 });

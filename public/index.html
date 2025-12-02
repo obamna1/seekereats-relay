@@ -70,7 +70,17 @@
                         <input type="number" name="order_value" placeholder="1999" required>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">Get Quote</button>
+                    <hr>
+
+                    <div class="form-group">
+                        <label>Order Details (for phone call)</label>
+                        <input type="text" name="order_details" placeholder="e.g., 1 large pizza, 2 sodas">
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary">Get Quote</button>
+                        <button type="button" id="place-call-from-form-btn" class="btn btn-primary">Place Order via Phone</button>
+                    </div>
                 </form>
             </section>
 
@@ -94,7 +104,11 @@
                 </div>
                 <div class="button-group">
                     <button id="refresh-status-btn" class="btn btn-primary">Refresh Status</button>
+                    <button id="place-order-call-btn" class="btn btn-primary">Place Order via Phone</button>
                     <button id="new-delivery-btn" class="btn btn-secondary">New Delivery</button>
+                </div>
+                <div id="call-status" style="display: none; margin-top: 16px; padding: 12px; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px;">
+                    <p id="call-status-text" style="margin: 0; color: #1565c0; font-weight: 500;"></p>
                 </div>
             </section>
         </div>

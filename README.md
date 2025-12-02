@@ -19,6 +19,8 @@ DoorDash Drive API (Sandbox)
 - **Quote Delivery**: `POST /relay/delivery` – Get quote (fee, times) for a delivery route
 - **Accept Quote**: `POST /relay/delivery/:id/accept` – Accept quote and create actual delivery
 - **Get Status**: `GET /relay/delivery/:external_delivery_id` – Fetch delivery status in real-time
+- **Place Order via Phone**: `POST /relay/order-call` – Automated phone call with text-to-speech order details
+- **Call Status**: `GET /relay/order-call/:call_sid/status` – Track call status and duration
 - **Web UI**: Open `http://localhost:3000/` to test the workflow visually
 - **Auth**: All relay endpoints require `X-Relay-Secret` header
 - **Health Check**: `GET /health` – No auth required
@@ -53,6 +55,19 @@ PORT=3000
 ```
 
 **Get DoorDash credentials from:** https://developer.doordash.com/portal/integration/drive/credentials
+
+3. (Optional) Add Twilio credentials for phone call feature:
+```env
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1your_twilio_number
+TEST_PHONE_NUMBER=+1your_test_phone_number
+```
+
+**Get Twilio credentials from:** https://console.twilio.com
+- **TWILIO_ACCOUNT_SID** and **TWILIO_AUTH_TOKEN** are in your Account Dashboard
+- **TWILIO_PHONE_NUMBER** is your Twilio phone number (must have voice capability)
+- **TEST_PHONE_NUMBER** is the number to receive test calls during development
 
 ## Development
 
@@ -223,6 +238,91 @@ Get current delivery status. Status progresses as the order moves through fulfil
 - `arrived_at_dropoff` - Dasher arrived at dropoff location
 - `delivered` - Order delivered
 
+### POST /relay/order-call
+Place an automated phone call with text-to-speech order details. Uses Twilio Programmable Voice to call a phone number and read order information aloud.
+
+**Headers:**
+- `X-Relay-Secret: <relay_secret>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "order_details": "1 large pizza, 2 sodas",
+  "dropoff_address": "1201 3rd Ave, Seattle, WA, 98101"
+}
+```
+
+**Response (200):**
+```json
+{
+  "call_sid": "CA1234567890abcdef1234567890abcdef",
+  "status": "initiated",
+  "phone_number": "+14135551234",
+  "message": "Call initiated successfully"
+}
+```
+
+**What happens:**
+- Twilio initiates an outbound call to `TEST_PHONE_NUMBER` from your `TWILIO_PHONE_NUMBER`
+- The call will read: "Hello, I would like to place an order for {order_details}, delivered to {dropoff_address}"
+- The `call_sid` is used to track call status
+
+### GET /relay/order-call/:call_sid/status
+Get the real-time status of a phone call.
+
+**Headers:**
+- `X-Relay-Secret: <relay_secret>`
+
+**Response (200):**
+```json
+{
+  "call_sid": "CA1234567890abcdef1234567890abcdef",
+  "status": "completed",
+  "phone_number": "+14135551234",
+  "delivery_id": null,
+  "duration": 25,
+  "created_at": "2025-12-01T20:30:00.000Z",
+  "end_time": "2025-12-01T20:30:25.000Z"
+}
+```
+
+**Possible Status Values:**
+- `queued` - Call is queued to be placed
+- `ringing` - Phone is ringing on the recipient's end
+- `in-progress` - Call is active
+- `completed` - Call finished
+- `failed` - Call failed to connect
+- `busy` - Phone line was busy
+- `no-answer` - Recipient did not answer
+
+## Twilio Phone Call Integration
+
+The relay includes a web UI button to test placing phone orders via automated calls.
+
+### How to Use (Web UI)
+1. Open `http://localhost:3000/`
+2. Enter order details (e.g., "1 large pizza, 2 sodas")
+3. Verify the dropoff address is filled in
+4. Click **"Place Order via Phone"**
+5. Twilio will call your test phone number and read the order details aloud
+6. The UI will show the call status in real-time
+
+### Message Format
+The automated call will speak:
+```
+"Hello, I would like to place an order for {order_details}, delivered to {dropoff_address}"
+```
+
+### Testing Without Twilio
+If Twilio credentials are not configured:
+- The phone call button will still appear in the UI
+- Clicking it will attempt to call but may fail
+- Configure Twilio credentials in `.env` to use this feature
+
+### For Android Developers
+The `/relay/order-call` endpoint can be integrated into your Android app to place orders via automated phone calls. Send the order details and dropoff address, and Twilio will handle the rest.
+
 ## Deployment (Railway)
 
 ### 1. Create Git Repository
@@ -248,6 +348,12 @@ DOORDASH_SIGNING_SECRET=...
 RELAY_SECRET=...
 PORT=3000
 NODE_ENV=production
+
+# Optional: Twilio credentials (for phone call feature)
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=...
+TEST_PHONE_NUMBER=...
 ```
 
 ### 4. Deploy
@@ -293,18 +399,22 @@ Order status does **not** advance automatically. Use the **DoorDash Delivery Sim
 
 ## For Android Frontend Developers
 
-This relay service provides three main API endpoints your Android app should call:
+This relay service provides the following API endpoints your Android app should call:
 
+### Core Delivery Endpoints
 1. **Get Quote** - Show the user the delivery fee & estimated pickup/dropoff times before they confirm
 2. **Accept Quote** - Create the actual delivery when user confirms
 3. **Get Status** - Poll for delivery status updates (use these to show real-time tracking UI)
+
+### Optional: Phone Order Endpoint
+4. **Place Order via Phone** - Initiate an automated phone call to place an order with text-to-speech details
 
 All requests require the `X-Relay-Secret` header:
 ```
 X-Relay-Secret: seekereats-hackathon-secret-2024
 ```
 
-**Example workflow in your Android app:**
+**Example workflow in your Android app (Delivery):**
 
 ```
 User clicks "Request Delivery"
@@ -320,6 +430,20 @@ Poll GET STATUS every 5-10 seconds
 Update UI with status (enroute, arrived, picked_up, delivered)
 ```
 
+**Example workflow for phone orders (Optional):**
+
+```
+User clicks "Place Order via Phone"
+    ↓
+POST /relay/order-call with order details + dropoff address
+    ↓
+Get call_sid from response
+    ↓
+Poll GET /relay/order-call/:call_sid/status every 2-3 seconds
+    ↓
+Show call status to user (ringing, in-progress, completed)
+```
+
 For integration questions or API schema details, check the full endpoint documentation above.
 
 ## Hackathon Timeline
@@ -330,6 +454,7 @@ For integration questions or API schema details, check the full endpoint documen
 - **Phase 3:** ✅ Tested quote workflow locally
 - **Phase 4:** ✅ Created web UI for testing
 - **Phase 5:** 🔄 Deploy to Railway & share with team
+- **Phase 6:** ✅ Added Twilio phone call integration (automated order placement via voice)
 
 ## Support & Troubleshooting
 

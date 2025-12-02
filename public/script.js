@@ -18,8 +18,17 @@ const backToQuoteBtn = document.getElementById('back-to-quote-btn');
 const refreshStatusBtn = document.getElementById('refresh-status-btn');
 const newDeliveryBtn = document.getElementById('new-delivery-btn');
 const autofillBtn = document.getElementById('autofill-btn');
+const placeOrderCallBtn = document.getElementById('place-order-call-btn');
+const placeCallFromFormBtn = document.getElementById('place-call-from-form-btn');
+const callStatusDiv = document.getElementById('call-status');
+const callStatusText = document.getElementById('call-status-text');
 const errorMessage = document.getElementById('error-message');
 const apiStatusDot = document.querySelector('.dot');
+
+// State for call tracking
+let currentCallSid = null;
+let callStatusPollingInterval = null;
+let testPhoneNumber = null;
 
 // Test data
 const testData = {
@@ -50,7 +59,27 @@ autofillBtn.addEventListener('click', autofillForm);
 // Check API availability on load
 window.addEventListener('load', () => {
     checkAPIStatus();
+    loadConfig();
 });
+
+// Load configuration from backend
+async function loadConfig() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/relay/config`, {
+            method: 'GET',
+            headers: {
+                'X-Relay-Secret': RELAY_SECRET,
+            },
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            testPhoneNumber = data.test_phone_number;
+        }
+    } catch (error) {
+        console.error('Error loading config:', error);
+    }
+}
 
 // Check if relay API is available
 async function checkAPIStatus() {
@@ -273,6 +302,176 @@ newDeliveryBtn.addEventListener('click', () => {
     acceptQuoteBtn.disabled = true;
     showSection(quoteSection);
 });
+
+// Place order call button from form (independent of delivery workflow)
+placeCallFromFormBtn.addEventListener('click', async () => {
+    const formData = new FormData(quoteForm);
+    const orderDetails = formData.get('order_details');
+
+    if (!orderDetails) {
+        showError('Order details are required to place a call.');
+        return;
+    }
+
+    if (!testPhoneNumber) {
+        showError('Configuration not loaded. Please refresh the page.');
+        return;
+    }
+
+    try {
+        placeCallFromFormBtn.disabled = true;
+
+        // Show call status in quote section temporarily
+        const quoteResultDiv = document.getElementById('quote-result');
+        quoteResultDiv.innerHTML = '<p class=\"loading\">Initiating call...</p>';
+        showSection(quoteResultSection);
+
+        const dropoffAddress = formData.get('dropoff_address');
+
+        const response = await fetch(`${API_BASE_URL}/relay/order-call`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Relay-Secret': RELAY_SECRET,
+            },
+            body: JSON.stringify({
+                delivery_id: null,
+                phone_number: testPhoneNumber,
+                order_details: orderDetails,
+                dropoff_address: dropoffAddress,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        currentCallSid = data.call_sid;
+
+        const message = `Hello, I would like to place an order for ${orderDetails}${dropoffAddress ? `, delivered to ${dropoffAddress}` : ''}`;
+
+        const callDisplay = `
+CALL INITIATED ✓
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Call SID: ${data.call_sid}
+Status: ${data.status}
+Phone: ${data.phone_number}
+
+Message Being Spoken:
+"${message}"
+
+Waiting for call response...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        `;
+
+        quoteResultDiv.innerHTML = `<pre>${callDisplay}</pre>`;
+
+        // Start polling for call status
+        pollCallStatus(() => {
+            placeCallFromFormBtn.disabled = false;
+        });
+    } catch (error) {
+        showError(`Call Error: ${error.message}`);
+        placeCallFromFormBtn.disabled = false;
+    }
+});
+
+// Place order call button from delivery status section
+placeOrderCallBtn.addEventListener('click', async () => {
+    if (!currentDeliveryId) {
+        showError('No delivery selected. Please accept a quote first.');
+        return;
+    }
+
+    try {
+        placeOrderCallBtn.disabled = true;
+        callStatusDiv.style.display = 'block';
+        callStatusText.textContent = 'Initiating call...';
+
+        const response = await fetch(`${API_BASE_URL}/relay/order-call`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Relay-Secret': RELAY_SECRET,
+            },
+            body: JSON.stringify({
+                delivery_id: currentDeliveryId,
+                phone_number: process.env.TEST_PHONE_NUMBER || '+14134741348',
+                order_details: 'Test order: 1 large pizza, 2 sodas',
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        currentCallSid = data.call_sid;
+
+        callStatusText.textContent = `Call initiated (SID: ${data.call_sid}). Waiting for response...`;
+
+        // Start polling for call status
+        pollCallStatus();
+    } catch (error) {
+        showError(`Call Error: ${error.message}`);
+        callStatusDiv.style.display = 'none';
+        placeOrderCallBtn.disabled = false;
+    }
+});
+
+// Poll call status
+function pollCallStatus(onComplete) {
+    if (callStatusPollingInterval) {
+        clearInterval(callStatusPollingInterval);
+    }
+
+    callStatusPollingInterval = setInterval(async () => {
+        if (!currentCallSid) {
+            clearInterval(callStatusPollingInterval);
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/relay/order-call/${currentCallSid}/status`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'X-Relay-Secret': RELAY_SECRET,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            callStatusText.textContent = `Call Status: ${data.status.toUpperCase()}${data.duration ? ` (${data.duration}s)` : ''}`;
+
+            // Update quote result display if showing call
+            const quoteResultDiv = document.getElementById('quote-result');
+            if (quoteResultDiv && quoteResultDiv.textContent.includes('CALL INITIATED')) {
+                quoteResultDiv.innerHTML = `<pre>Call Status: ${data.status.toUpperCase()}${data.duration ? ` (${data.duration}s)` : ''}</pre>`;
+            }
+
+            // Stop polling when call completes or fails
+            if (data.status === 'completed' || data.status === 'failed') {
+                clearInterval(callStatusPollingInterval);
+                setTimeout(() => {
+                    callStatusDiv.style.display = 'none';
+                    placeOrderCallBtn.disabled = false;
+                    if (onComplete) onComplete();
+                }, 3000);
+            }
+        } catch (error) {
+            console.error('Error polling call status:', error);
+        }
+    }, 2000); // Poll every 2 seconds
+}
 
 // Check API status periodically
 setInterval(checkAPIStatus, 10000);
