@@ -10,7 +10,6 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
 // Health check endpoint (no auth required)
 app.get('/health', (req: Request, res: Response) => {
