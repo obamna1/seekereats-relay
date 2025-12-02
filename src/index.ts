@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import cors from 'cors';
 import config from './config/doorDashConfig';
 import { authMiddleware } from './middleware/auth';
 import relayRoutes from './routes/relay';
@@ -7,6 +8,7 @@ import relayRoutes from './routes/relay';
 const app = express();
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
