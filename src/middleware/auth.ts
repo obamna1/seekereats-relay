@@ -6,6 +6,12 @@ export const authMiddleware = (
   res: Response,
   next: NextFunction
 ): void => {
+  // Allow CORS preflight requests to pass through
+  if (req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+
   const relaySecret = req.headers['x-relay-secret'];
 
   if (!relaySecret) {
