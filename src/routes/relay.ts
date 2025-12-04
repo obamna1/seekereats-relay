@@ -178,11 +178,16 @@ router.post('/order-call', async (req: Request, res: Response) => {
     // Create TwiML message with text-to-speech
     const message = `Hello, I would like to place an order for ${order_details}${dropoff_address ? `, delivered to ${dropoff_address}` : ''}`;
 
-    // Initiate the call with simple text-to-speech
+    // Ensure BASE_URL is configured
+    if (!twilioConfig.baseUrl) {
+      throw new Error('BASE_URL is not configured');
+    }
+
+    // Initiate the call with URL for TwiML
     const call = await twilioClient.calls.create({
       from: twilioConfig.phoneNumber!,
       to: phone_number,
-      twiml: `<Response><Say>${message}</Say></Response>`,
+      url: `${twilioConfig.baseUrl}/twilio/twiml?message=${encodeURIComponent(message)}`,
     });
 
     // Store call info in memory

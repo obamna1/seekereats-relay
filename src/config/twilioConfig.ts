@@ -3,4 +3,5 @@ export default {
   authToken: process.env.TWILIO_AUTH_TOKEN,
   phoneNumber: process.env.TWILIO_PHONE_NUMBER,
   testPhoneNumber: process.env.TEST_PHONE_NUMBER,
+  baseUrl: process.env.BASE_URL,
 };

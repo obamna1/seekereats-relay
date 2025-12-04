@@ -4,12 +4,15 @@ import cors from 'cors';
 import config from './config/doorDashConfig';
 import { authMiddleware } from './middleware/auth';
 import relayRoutes from './routes/relay';
+import twilioRoutes from './routes/twilio';
+import restaurantRoutes from './routes/restaurants';
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Twilio sends form-urlencoded data
 
 // Root endpoint - API info
 app.get('/', (req: Request, res: Response) => {
@@ -20,12 +23,15 @@ app.get('/', (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     endpoints: {
       health: '/health',
+      restaurants: 'GET /restaurants',
+      restaurantDetails: 'GET /restaurants/:id',
       quote: 'POST /relay/delivery',
       acceptQuote: 'POST /relay/delivery/{id}/accept',
       deliveryStatus: 'GET /relay/delivery/{id}',
       phoneCall: 'POST /relay/order-call',
       callStatus: 'GET /relay/order-call/{call_sid}/status',
-      config: 'GET /relay/config'
+      config: 'GET /relay/config',
+      twiml: 'POST /twilio/twiml'
     },
     note: 'All /relay endpoints require X-Relay-Secret header'
   });
@@ -35,6 +41,12 @@ app.get('/', (req: Request, res: Response) => {
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Public restaurant routes (no auth required)
+app.use('/restaurants', restaurantRoutes);
+
+// Public Twilio routes (no auth required)
+app.use('/twilio', twilioRoutes);
 
 // Protected relay routes
 app.use('/relay', authMiddleware, relayRoutes);
