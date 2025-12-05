@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "seeker-eats",
+    "slug": "seeker-eats",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "seeker-eats",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff",
+        "softwareKeyboardLayoutMode": "resize"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.seekereats.app",
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/images/splash-icon.png"
+          },
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-web-browser",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "ndkVersion": "27.1.12297006"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {}
+    }
+  }
+}
