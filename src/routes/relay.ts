@@ -4,15 +4,13 @@ import { DoorDashClient, QuotePayload, AcceptQuotePayload } from '../clients/Doo
 import config from '../config/doorDashConfig';
 import twilioConfig from '../config/twilioConfig';
 import twilio from 'twilio';
+import { callStore } from './twilio';
 
 const router = Router();
 const doorDashClient = new DoorDashClient(config);
 
 // Initialize Twilio client
 const twilioClient = twilio(twilioConfig.accountSid, twilioConfig.authToken);
-
-// In-memory call store (for demo purposes)
-const callStore: { [key: string]: any } = {};
 
 /**
  * POST /relay/delivery
@@ -183,11 +181,11 @@ router.post('/order-call', async (req: Request, res: Response) => {
       throw new Error('BASE_URL is not configured');
     }
 
-    // Initiate the call with URL for TwiML
+    // Initiate the call with URL for TwiML (include delivery_id for tracking)
     const call = await twilioClient.calls.create({
       from: twilioConfig.phoneNumber!,
       to: phone_number,
-      url: `${twilioConfig.baseUrl}/twilio/twiml?message=${encodeURIComponent(message)}`,
+      url: `${twilioConfig.baseUrl}/twilio/twiml?message=${encodeURIComponent(message)}&delivery_id=${delivery_id}`,
     });
 
     // Store call info in memory
@@ -249,12 +247,14 @@ router.get('/order-call/:call_sid/status', async (req: Request, res: Response) =
 
     res.status(200).json({
       call_sid: call.sid,
-      status: call.status,
+      call_status: call.status,
+      order_status: storedCall.status || 'pending',
       phone_number: storedCall.phone_number,
       delivery_id: storedCall.delivery_id,
       duration: call.duration,
       created_at: call.dateCreated,
       end_time: call.dateUpdated,
+      response_time: storedCall.response_time,
     });
   } catch (error: any) {
     console.error('Error fetching call status:', error.message);
