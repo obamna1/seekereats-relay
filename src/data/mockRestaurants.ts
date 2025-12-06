@@ -25,9 +25,63 @@ export interface Restaurant {
   cuisine: string;
   address: string;
   menu: MenuItem[];
+  phone?: string;
+  priority?: number;
 }
 
 export const MOCK_RESTAURANTS: Restaurant[] = [
+  {
+    id: '3',
+    name: 'Pizza House',
+    description: 'Authentic pizzas made with fresh ingredients and traditional recipes',
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&q=80',
+    rating: 4.6,
+    deliveryTime: '25-35 min',
+    deliveryFee: 3.49,
+    minimumOrder: 12.00,
+    cuisine: 'Italian',
+    address: 'Ross School of Business RM0230, 701 Tappan Ave, Ann Arbor, MI 48109',
+    phone: '+17349955095',
+    priority: 1,
+    menu: [
+      {
+        id: '3-1',
+        name: 'Large Pepperoni Pizza',
+        description: 'Classic pepperoni with mozzarella cheese and tangy tomato sauce',
+        price: 16.99,
+        category: 'Pizzas',
+        image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600&q=80',
+        available: true,
+      },
+      {
+        id: '3-2',
+        name: 'Medium Cheese Pizza',
+        description: 'Simple and delicious mozzarella and tomato sauce',
+        price: 12.99,
+        category: 'Pizzas',
+        image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80',
+        available: true,
+      },
+      {
+        id: '3-3',
+        name: 'Medium Meat Lovers Pizza',
+        description: 'Loaded with pepperoni, sausage, bacon, and ham',
+        price: 17.99,
+        category: 'Pizzas',
+        image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&q=80',
+        available: true,
+      },
+      {
+        id: '3-4',
+        name: 'Large Veggie Supreme Pizza',
+        description: 'Bell peppers, mushrooms, onions, olives, and tomatoes',
+        price: 16.99,
+        category: 'Pizzas',
+        image: 'https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?w=600&q=80',
+        available: true,
+      },
+    ],
+  },
   {
     id: '1',
     name: 'Burger King',
@@ -39,6 +93,7 @@ export const MOCK_RESTAURANTS: Restaurant[] = [
     minimumOrder: 10.00,
     cuisine: 'American',
     address: '123 Main St, Downtown',
+    priority: 2,
     menu: [
       {
         id: '1-1',
@@ -89,6 +144,7 @@ export const MOCK_RESTAURANTS: Restaurant[] = [
     minimumOrder: 15.00,
     cuisine: 'Japanese',
     address: '456 Ocean Ave, Waterfront',
+    priority: 3,
     menu: [
       {
         id: '2-1',
@@ -134,7 +190,7 @@ export const MOCK_RESTAURANTS: Restaurant[] = [
  * Get all restaurants
  */
 export function getAllRestaurants(): Restaurant[] {
-  return MOCK_RESTAURANTS;
+  return [...MOCK_RESTAURANTS].sort((a, b) => (a.priority || 999) - (b.priority || 999));
 }
 
 /**

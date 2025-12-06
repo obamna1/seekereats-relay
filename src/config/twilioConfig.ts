@@ -4,4 +4,5 @@ export default {
   phoneNumber: process.env.TWILIO_PHONE_NUMBER,
   testPhoneNumber: process.env.TEST_PHONE_NUMBER,
   baseUrl: process.env.BASE_URL,
+  enablePhoneCalls: process.env.ENABLE_PHONE_CALLS === 'true',
 };
