@@ -6,6 +6,7 @@ import { authMiddleware } from './middleware/auth';
 import relayRoutes from './routes/relay';
 import twilioRoutes from './routes/twilio';
 import restaurantRoutes from './routes/restaurants';
+import waitlistRoutes from './routes/waitlist';
 
 const app = express();
 
@@ -31,7 +32,9 @@ app.get('/', (req: Request, res: Response) => {
       phoneCall: 'POST /relay/order-call',
       callStatus: 'GET /relay/order-call/{call_sid}/status',
       config: 'GET /relay/config',
-      twiml: 'POST /twilio/twiml'
+      twiml: 'POST /twilio/twiml',
+      waitlist: 'POST /waitlist',
+      waitlistCount: 'GET /waitlist/count'
     },
     note: 'All /relay endpoints require X-Relay-Secret header'
   });
@@ -47,6 +50,9 @@ app.use('/restaurants', restaurantRoutes);
 
 // Public Twilio routes (no auth required)
 app.use('/twilio', twilioRoutes);
+
+// Public waitlist routes (no auth required)
+app.use('/waitlist', waitlistRoutes);
 
 // Protected relay routes
 app.use('/relay', authMiddleware, relayRoutes);
