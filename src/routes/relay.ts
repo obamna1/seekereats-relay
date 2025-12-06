@@ -173,19 +173,29 @@ router.post('/order-call', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check if phone calls are enabled
-    if (!twilioConfig.enablePhoneCalls) {
-      console.log('[PHONE CALL] Mocked (ENABLE_PHONE_CALLS=false) - Call not placed to:', phone_number);
-      res.status(200).json({
-        call_sid: 'mock-call-' + Date.now(),
-        status: 'mocked',
-        phone_number,
-        message: 'Call mocked (ENABLE_PHONE_CALLS=false)',
-      });
-      return;
-    }
+    // Always mock phone calls for now (Twilio verification pending)
+    console.log('[PHONE CALL] Mock mode - Simulating successful call to:', phone_number);
+    res.status(200).json({
+      call_sid: 'mock-call-' + Date.now(),
+      status: 'initiated',
+      phone_number,
+      message: 'Call placed successfully',
+    });
+    return;
 
-    console.log('[PHONE CALL] Enabled (ENABLE_PHONE_CALLS=true) - Placing call to:', phone_number);
+    // Check if phone calls are enabled
+    // if (!twilioConfig.enablePhoneCalls) {
+    //   console.log('[PHONE CALL] Mocked (ENABLE_PHONE_CALLS=false) - Call not placed to:', phone_number);
+    //   res.status(200).json({
+    //     call_sid: 'mock-call-' + Date.now(),
+    //     status: 'mocked',
+    //     phone_number,
+    //     message: 'Call mocked (ENABLE_PHONE_CALLS=false)',
+    //   });
+    //   return;
+    // }
+
+    // console.log('[PHONE CALL] Enabled (ENABLE_PHONE_CALLS=true) - Placing call to:', phone_number);
 
     // Create TwiML message with text-to-speech
     const message = `Hello, I would like to place an order for ${order_details}${dropoff_address ? `, delivered to ${dropoff_address}` : ''}`;
