@@ -12,5 +12,3 @@ dist/
 *~
 .prisma/
 .claude/
-data/
-prisma/migrations/
