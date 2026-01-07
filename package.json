@@ -7,7 +7,11 @@
     "start": "ts-node src/index.ts",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "prod": "node dist/index.js"
+    "prod": "node dist/index.js",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "generate-code": "ts-node scripts/generate-code.ts"
   },
   "keywords": [
     "doordash",
