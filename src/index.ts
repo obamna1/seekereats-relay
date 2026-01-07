@@ -48,6 +48,10 @@ app.use('/restaurants', restaurantRoutes);
 // Public Twilio routes (no auth required)
 app.use('/twilio', twilioRoutes);
 
+// Public Waitlist routes
+import waitlistRoutes from './routes/waitlist';
+app.use('/waitlist', waitlistRoutes);
+
 // Protected relay routes
 app.use('/relay', authMiddleware, relayRoutes);
 
