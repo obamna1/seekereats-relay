@@ -79,6 +79,25 @@ async function main() {
       console.log(`  Access Codes: ${codeCount}`);
       break;
 
+    case "reset-email":
+      if (!arg) {
+        console.log(
+          "Usage: npx ts-node scripts/db-admin.ts reset-email <email>"
+        );
+        break;
+      }
+      const deleted = await prisma.waitlist.deleteMany({
+        where: { email: arg },
+      });
+      if (deleted.count > 0) {
+        console.log(
+          `🔄 Reset: ${arg} - removed from waitlist (can test again)`
+        );
+      } else {
+        console.log(`ℹ️  ${arg} was not in the waitlist`);
+      }
+      break;
+
     default:
       console.log(`
 📦 SeekerEats Database Admin
@@ -87,6 +106,7 @@ Commands:
   npx ts-node scripts/db-admin.ts list-codes          List all access codes
   npx ts-node scripts/db-admin.ts list-waitlist       List waitlist entries
   npx ts-node scripts/db-admin.ts approve-email <email>  Approve a user
+  npx ts-node scripts/db-admin.ts reset-email <email>    Reset user (for testing)
   npx ts-node scripts/db-admin.ts stats               Show statistics
       `);
   }
