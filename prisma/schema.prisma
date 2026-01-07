@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// For Railway production, use PostgreSQL
+// For local development, you can use SQLite by setting DATABASE_URL="file:./dev.db"
+// Note: If switching providers, delete prisma/migrations folder and run `npx prisma db push`
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// WAITLIST & ACCESS CONTROL
+// ============================================================
+
+model Waitlist {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  status    String   @default("PENDING") // PENDING, APPROVED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AccessCode {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  maxUses     Int      @default(1)
+  currentUses Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// ============================================================
+// USERS
+// ============================================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  walletAddress String?  @unique // Solana wallet address
+  name          String?
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  orders           Order[]
+  deliveryAddress  DeliveryAddress[]
+}
+
+model DeliveryAddress {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  label      String?  // "Home", "Work", etc.
+  street     String
+  city       String
+  state      String
+  zipCode    String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  
+  @@index([userId])
+}
+
+// ============================================================
+// RESTAURANTS & MENUS
+// ============================================================
+
+model Restaurant {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  image        String?
+  rating       Float    @default(0)
+  deliveryTime String?  // e.g., "25-35 min"
+  deliveryFee  Float    @default(0)
+  minimumOrder Float    @default(0)
+  cuisine      String?
+  address      String
+  phone        String?
+  priority     Int      @default(999) // Lower = higher priority in listings
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  menuItems MenuItem[]
+  orders    Order[]
+}
+
+model MenuItem {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Float
+  category     String?
+  image        String?
+  available    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  orderItems OrderItem[]
+  
+  @@index([restaurantId])
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+
+model Order {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
+  
+  // Order details
+  subtotal        Float
+  deliveryFee     Float
+  total           Float
+  status          String   @default("PENDING") // PENDING, CONFIRMED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELLED
+  
+  // Delivery info
+  deliveryAddress String
+  deliveryNotes   String?
+  
+  // Payment info
+  paymentMethod   String   @default("USDC") // USDC, SOL, etc.
+  paymentTxHash   String?  // Solana transaction signature
+  paymentStatus   String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+  
+  // Delivery provider info
+  deliveryProvider String?  // DOORDASH, UBER, etc.
+  deliveryId       String?  // External delivery ID
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  items OrderItem[]
+  
+  @@index([userId])
+  @@index([restaurantId])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  quantity   Int
+  price      Float    // Price at time of order
+  notes      String?
+  
+  @@index([orderId])
+}
+
