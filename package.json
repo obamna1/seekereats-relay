@@ -11,7 +11,11 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "generate-code": "ts-node scripts/generate-code.ts"
+    "generate-code": "ts-node scripts/generate-code.ts",
+    "lint": "eslint src --ext .ts --fix",
+    "lint:check": "eslint src --ext .ts",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check ."
   },
   "keywords": [
     "doordash",
@@ -38,6 +42,10 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.10.6",
     "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.18.0",
+    "@typescript-eslint/parser": "^6.18.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
     "prisma": "^5.7.1",
     "serve": "^14.2.5",
     "ts-node": "^10.9.2",
