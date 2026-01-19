@@ -13,3 +13,4 @@ dist/
 .prisma/
 .claude/
 prisma/dev.db
+eas.json
