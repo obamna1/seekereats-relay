@@ -9,8 +9,24 @@ import { callStore } from './twilio';
 const router = Router();
 const doorDashClient = new DoorDashClient(config);
 
-// Initialize Twilio client
-const twilioClient = twilio(twilioConfig.accountSid, twilioConfig.authToken);
+// Lazy-initialize Twilio client (only when needed)
+let _twilioClient: ReturnType<typeof twilio> | null = null;
+function getTwilioClient() {
+  if (!_twilioClient) {
+    if (
+      !twilioConfig.accountSid ||
+      !twilioConfig.authToken ||
+      twilioConfig.accountSid === 'placeholder' ||
+      twilioConfig.authToken === 'placeholder'
+    ) {
+      throw new Error(
+        'Twilio credentials not configured. Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.'
+      );
+    }
+    _twilioClient = twilio(twilioConfig.accountSid, twilioConfig.authToken);
+  }
+  return _twilioClient;
+}
 
 /**
  * POST /relay/delivery
@@ -41,7 +57,7 @@ router.post('/delivery', async (req: Request, res: Response) => {
       'order_value',
     ];
 
-    const missing = required.filter(field => !req.body[field]);
+    const missing = required.filter((field) => !req.body[field]);
     if (missing.length > 0) {
       res.status(400).json({
         error: 'Bad Request',
@@ -175,7 +191,12 @@ router.post('/order-call', async (req: Request, res: Response) => {
 
     // Override phone number to verified Twilio number for testing
     const actualPhoneNumber = '+14134741348';
-    console.log('[PHONE CALL] Overriding phone number - Requested:', phone_number, '-> Calling:', actualPhoneNumber);
+    console.log(
+      '[PHONE CALL] Overriding phone number - Requested:',
+      phone_number,
+      '-> Calling:',
+      actualPhoneNumber
+    );
 
     // Create TwiML message with text-to-speech
     const message = `Hello, I would like to place an order for ${order_details}${dropoff_address ? `, delivered to ${dropoff_address}` : ''}`;
@@ -186,7 +207,7 @@ router.post('/order-call', async (req: Request, res: Response) => {
     }
 
     // Initiate the call with URL for TwiML (include delivery_id for tracking)
-    const call = await twilioClient.calls.create({
+    const call = await getTwilioClient().calls.create({
       from: twilioConfig.phoneNumber!,
       to: actualPhoneNumber,
       url: `${twilioConfig.baseUrl}/twilio/twiml?message=${encodeURIComponent(message)}&delivery_id=${delivery_id}`,
@@ -244,7 +265,7 @@ router.get('/order-call/:call_sid/status', async (req: Request, res: Response) =
     }
 
     // Get call details from Twilio
-    const call = await twilioClient.calls(call_sid).fetch();
+    const call = await getTwilioClient().calls(call_sid).fetch();
 
     // Get stored call info
     const storedCall = callStore[call_sid] || {};

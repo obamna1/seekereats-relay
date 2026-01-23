@@ -1,77 +1,107 @@
 import { Router, Request, Response } from 'express';
-import { getAllRestaurants, getRestaurantById } from '../data/mockRestaurants';
+import { PrismaClient } from '@prisma/client';
 
 const router = Router();
+const prisma = new PrismaClient();
 
 /**
  * GET /restaurants
- * Get all restaurants
+ * Get all active restaurants
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    console.log('[Restaurants API] GET /restaurants - Fetching all restaurants');
+    const { city } = req.query;
 
-    const restaurants = getAllRestaurants();
+    console.log('[Restaurants API] GET /restaurants', city ? `city=${city}` : '');
 
-    console.log(`[Restaurants API] Found ${restaurants.length} restaurants`);
-
-    res.status(200).json({
-      success: true,
-      count: restaurants.length,
-      data: restaurants,
+    const restaurants = await prisma.restaurant.findMany({
+      where: {
+        isActive: true,
+        ...(city ? { city: city as string } : {}),
+      },
+      orderBy: { priority: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        image: true,
+        imageUrl: true,
+        rating: true,
+        deliveryTime: true,
+        deliveryFee: true,
+        minimumOrder: true,
+        cuisine: true,
+        address: true,
+        phone: true,
+        city: true,
+        fulfillmentType: true,
+        operatingHours: true,
+        estimatedPrepTime: true,
+      },
     });
+
+    // Map to frontend format (imageUrl fallback to image)
+    const mapped = restaurants.map((r) => ({
+      ...r,
+      image: r.imageUrl || r.image,
+    }));
+
+    console.log(`[Restaurants API] Found ${mapped.length} restaurants`);
+
+    res.status(200).json({ success: true, count: mapped.length, data: mapped });
   } catch (error: any) {
-    console.error('[Restaurants API] Error fetching restaurants:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to fetch restaurants',
-    });
+    console.error('[Restaurants API] Error:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 
 /**
  * GET /restaurants/:id
- * Get a specific restaurant by ID with full menu
+ * Get restaurant details with menu
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    console.log(`[Restaurants API] GET /restaurants/${id} - Fetching restaurant`);
+    console.log(`[Restaurants API] GET /restaurants/${id}`);
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'Bad Request',
-        message: 'Restaurant ID is required',
-      });
-    }
-
-    const restaurant = getRestaurantById(id);
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      include: {
+        menuItems: {
+          where: { available: true },
+          orderBy: { category: 'asc' },
+        },
+      },
+    });
 
     if (!restaurant) {
-      console.log(`[Restaurants API] Restaurant with ID ${id} not found`);
-      return res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: `Restaurant with ID ${id} not found`,
-      });
+      return res.status(404).json({ success: false, error: 'Not Found' });
     }
 
-    console.log(`[Restaurants API] Found restaurant: ${restaurant.name} with ${restaurant.menu.length} menu items`);
+    // Map to frontend format
+    const mapped = {
+      ...restaurant,
+      image: restaurant.imageUrl || restaurant.image,
+      menu: restaurant.menuItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        category: item.category,
+        image: item.image,
+        available: item.available,
+      })),
+    };
 
-    res.status(200).json({
-      success: true,
-      data: restaurant,
-    });
+    console.log(
+      `[Restaurants API] Found: ${restaurant.name} with ${restaurant.menuItems.length} items`
+    );
+
+    res.status(200).json({ success: true, data: mapped });
   } catch (error: any) {
-    console.error('[Restaurants API] Error fetching restaurant:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to fetch restaurant',
-    });
+    console.error('[Restaurants API] Error:', error);
+    res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 

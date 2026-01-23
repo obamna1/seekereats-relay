@@ -4,11 +4,13 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
 import { authMiddleware } from './middleware/auth';
 import relayRoutes from './routes/relay';
 import twilioRoutes from './routes/twilio';
 import restaurantRoutes from './routes/restaurants';
 import waitlistRoutes from './routes/waitlist';
+import adminRoutes from './routes/admin';
 
 const app = express();
 
@@ -16,6 +18,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve admin static files
+app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
 
 // Root endpoint - API info
 app.get('/', (req: Request, res: Response) => {
@@ -35,6 +40,7 @@ app.get('/', (req: Request, res: Response) => {
       callStatus: 'GET /relay/order-call/{call_sid}/status',
       config: 'GET /relay/config',
       twiml: 'POST /twilio/twiml',
+      admin: 'GET /admin/',
     },
     note: 'All /relay endpoints require X-Relay-Secret header',
   });
@@ -53,6 +59,9 @@ app.use('/twilio', twilioRoutes);
 
 // Public Waitlist routes
 app.use('/waitlist', waitlistRoutes);
+
+// Admin routes (has its own auth)
+app.use('/admin', adminRoutes);
 
 // Protected relay routes
 app.use('/relay', authMiddleware, relayRoutes);

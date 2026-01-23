@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SeekerEats Admin</title>
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+      <div class="login-container">
+        <div class="logo">
+          <span class="logo-icon">🍔</span>
+          <h1>SeekerEats Admin</h1>
+        </div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter admin password" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Login</button>
+          <p id="login-error" class="error-text"></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen hidden">
+      <nav class="sidebar">
+        <div class="sidebar-header">
+          <span class="logo-icon">🍔</span>
+          <span class="logo-text">SeekerEats</span>
+        </div>
+        <ul class="nav-links">
+          <li><a href="#" class="nav-link active" data-page="restaurants">🏪 Restaurants</a></li>
+          <li><a href="#" class="nav-link" data-page="orders">📦 Orders</a></li>
+        </ul>
+        <div class="sidebar-footer">
+          <button id="logout-btn" class="btn btn-secondary btn-block">Logout</button>
+        </div>
+      </nav>
+
+      <main class="main-content">
+        <!-- Restaurants Page -->
+        <div id="restaurants-page" class="page">
+          <div class="page-header">
+            <h2>Restaurants</h2>
+            <button id="add-restaurant-btn" class="btn btn-primary">+ Add Restaurant</button>
+          </div>
+          <div id="restaurants-list" class="card-grid">
+            <!-- Restaurants loaded here -->
+          </div>
+        </div>
+
+        <!-- Restaurant Edit Page -->
+        <div id="restaurant-edit-page" class="page hidden">
+          <div class="page-header">
+            <button class="btn btn-secondary back-btn" data-back="restaurants">← Back</button>
+            <h2 id="restaurant-edit-title">Edit Restaurant</h2>
+          </div>
+          <form id="restaurant-form" class="form-card">
+            <input type="hidden" id="restaurant-id" />
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="restaurant-name">Name *</label>
+                <input type="text" id="restaurant-name" required />
+              </div>
+              <div class="form-group">
+                <label for="restaurant-cuisine">Cuisine</label>
+                <input type="text" id="restaurant-cuisine" placeholder="American, Italian, etc" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="restaurant-description">Description</label>
+              <textarea id="restaurant-description" rows="2"></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="restaurant-phone">Phone</label>
+                <input type="tel" id="restaurant-phone" placeholder="+1234567890" />
+              </div>
+              <div class="form-group">
+                <label for="restaurant-city">City</label>
+                <input type="text" id="restaurant-city" placeholder="Anchorage" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="restaurant-address">Address</label>
+              <input type="text" id="restaurant-address" placeholder="123 Main St" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="restaurant-imageUrl">Image URL</label>
+                <input type="url" id="restaurant-imageUrl" placeholder="https://..." />
+              </div>
+              <div class="form-group">
+                <label for="restaurant-priority">Priority</label>
+                <input type="number" id="restaurant-priority" value="999" min="1" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="restaurant-fulfillmentType">Fulfillment</label>
+                <select id="restaurant-fulfillmentType">
+                  <option value="PICKUP">Pickup</option>
+                  <option value="RESTAURANT_DELIVERY">Restaurant Delivery</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="restaurant-isActive">Status</label>
+                <select id="restaurant-isActive">
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Restaurant</button>
+              <button type="button" id="delete-restaurant-btn" class="btn btn-danger hidden">
+                Delete
+              </button>
+            </div>
+          </form>
+
+          <!-- Menu Items Section -->
+          <div id="menu-section" class="hidden">
+            <div class="page-header">
+              <h3>Menu Items</h3>
+              <button id="add-menu-item-btn" class="btn btn-primary">+ Add Item</button>
+            </div>
+            <div id="menu-items-list" class="menu-grid">
+              <!-- Menu items loaded here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu Item Modal -->
+        <div id="menu-modal" class="modal hidden">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="menu-modal-title">Add Menu Item</h3>
+              <button class="close-modal">&times;</button>
+            </div>
+            <form id="menu-form">
+              <input type="hidden" id="menu-item-id" />
+              <div class="form-group">
+                <label for="menu-name">Name *</label>
+                <input type="text" id="menu-name" required />
+              </div>
+              <div class="form-group">
+                <label for="menu-description">Description</label>
+                <textarea id="menu-description" rows="2"></textarea>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="menu-price">Price *</label>
+                  <input type="number" id="menu-price" step="0.01" min="0" required />
+                </div>
+                <div class="form-group">
+                  <label for="menu-category">Category</label>
+                  <input type="text" id="menu-category" placeholder="Entrees, Sides, etc" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="menu-available" checked />
+                  Available
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Item</button>
+                <button type="button" id="delete-menu-item-btn" class="btn btn-danger hidden">
+                  Delete
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Orders Page -->
+        <div id="orders-page" class="page hidden">
+          <div class="page-header">
+            <h2>Orders</h2>
+            <button id="refresh-orders-btn" class="btn btn-secondary">🔄 Refresh</button>
+          </div>
+          <div id="orders-list" class="orders-table">
+            <p class="empty-state">No orders yet</p>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="admin.js"></script>
+  </body>
+</html>
