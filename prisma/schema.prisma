@@ -70,7 +70,7 @@ model DeliveryAddress {
 
 model Restaurant {
   id           String   @id @default(uuid())
-  name         String
+  name         String   @unique  // Make unique for upsert
   description  String?
   image        String?
   rating       Float    @default(0)
@@ -84,6 +84,33 @@ model Restaurant {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // NEW: Media URLs (Cloudflare R2 later)
+  imageUrl        String?
+  logoUrl         String?
+  bannerUrl       String?
+
+  // NEW: Operating hours
+  operatingHours  Json?       // { "mon": "9:00-21:00", ... }
+
+  // NEW: Order placement
+  orderNotes      String?     // "Ask for pickup under SEEKER"
+  pickupInstructions String?  // "Go to side counter"
+
+  // NEW: Payment tracking
+  paymentMethod   String?     // "CARD_ON_FILE", "CALL_WITH_CARD"
+  paymentNotes    String?     // "Card ending 4242"
+
+  // NEW: Location
+  city            String?
+  state           String?
+  zipCode         String?
+  latitude        Float?
+  longitude       Float?
+
+  // NEW: Fulfillment
+  fulfillmentType String      @default("PICKUP") // "PICKUP", "RESTAURANT_DELIVERY"
+  estimatedPrepTime Int?      // Minutes
   
   // Relations
   menuItems MenuItem[]
@@ -102,6 +129,10 @@ model MenuItem {
   available    Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // NEW: Customization
+  customizable    Boolean     @default(false)
+  customNotes     String?     // "Add-ons available upon request"
   
   // Relations
   orderItems OrderItem[]
@@ -133,11 +164,18 @@ model Order {
   // Payment info
   paymentMethod   String   @default("USDC") // USDC, SOL, etc.
   paymentTxHash   String?  // Solana transaction signature
-  paymentStatus   String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+  paymentStatus   String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED, REFUND_PENDING
   
   // Delivery provider info
   deliveryProvider String?  // DOORDASH, UBER, etc.
   deliveryId       String?  // External delivery ID
+
+  // NEW: Twilio call tracking
+  callSid         String?     // Twilio call SID
+  callStatus      String?     // "initiated", "confirmed", "rejected", "no_answer"
+  confirmedAt     DateTime?   // When restaurant confirmed
+  rejectedReason  String?     // If restaurant rejected
+  refundTxHash    String?     // Refund transaction signature
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
