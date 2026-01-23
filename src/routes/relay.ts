@@ -4,10 +4,15 @@ import { DoorDashClient, QuotePayload, AcceptQuotePayload } from '../clients/Doo
 import config from '../config/doorDashConfig';
 import twilioConfig from '../config/twilioConfig';
 import twilio from 'twilio';
+import { PrismaClient } from '@prisma/client';
 import { callStore } from './twilio';
 
 const router = Router();
 const doorDashClient = new DoorDashClient(config);
+const prisma = new PrismaClient();
+
+// Configuration
+const TEST_PHONE_OVERRIDE = process.env.TEST_PHONE_OVERRIDE || '';
 
 // Lazy-initialize Twilio client (only when needed)
 let _twilioClient: ReturnType<typeof twilio> | null = null;
@@ -286,6 +291,277 @@ router.get('/order-call/:call_sid/status', async (req: Request, res: Response) =
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message || 'Failed to fetch call status',
+    });
+  }
+});
+
+// ============================================================
+// ORDER ENDPOINTS (Phase 4)
+// ============================================================
+
+/**
+ * POST /relay/orders
+ * Create a new order in the database
+ */
+router.post('/orders', async (req: Request, res: Response) => {
+  try {
+    const {
+      restaurantId,
+      items,
+      total,
+      paymentTxHash,
+      customerWallet,
+      deliveryAddress,
+      deliveryNotes,
+    } = req.body;
+
+    // Validate required fields
+    if (!restaurantId || !items || !total || !customerWallet) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'restaurantId, items, total, and customerWallet are required',
+      });
+      return;
+    }
+
+    // Verify restaurant exists
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+    });
+
+    if (!restaurant) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Restaurant not found',
+      });
+      return;
+    }
+
+    // Create or find user by wallet address
+    let user = await prisma.user.findUnique({
+      where: { walletAddress: customerWallet },
+    });
+
+    if (!user) {
+      // Create user with wallet as identifier
+      user = await prisma.user.create({
+        data: {
+          email: `${customerWallet.substring(0, 8)}@wallet.seekereats.app`,
+          walletAddress: customerWallet,
+        },
+      });
+      console.log(`[Orders API] Created new user for wallet: ${customerWallet.substring(0, 8)}...`);
+    }
+
+    // Create order with items
+    const order = await prisma.order.create({
+      data: {
+        userId: user.id,
+        restaurantId,
+        subtotal: total,
+        deliveryFee: 0, // Restaurant pickup for now
+        total,
+        status: 'PENDING',
+        deliveryAddress: deliveryAddress || 'Pickup',
+        deliveryNotes,
+        paymentMethod: 'USDC',
+        paymentTxHash: paymentTxHash || null,
+        paymentStatus: paymentTxHash ? 'COMPLETED' : 'PENDING',
+        items: {
+          create: items.map(
+            (item: { menuItemId: string; quantity: number; price: number; notes?: string }) => ({
+              menuItemId: item.menuItemId,
+              quantity: item.quantity,
+              price: item.price,
+              notes: item.notes,
+            })
+          ),
+        },
+      },
+      include: {
+        restaurant: { select: { name: true, phone: true, orderNotes: true } },
+        items: { include: { menuItem: { select: { name: true } } } },
+      },
+    });
+
+    console.log(`[Orders API] Created order: ${order.id} for ${restaurant.name}`);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: order.id,
+        status: order.status,
+        total: order.total,
+        restaurant: order.restaurant.name,
+        itemCount: order.items.length,
+        createdAt: order.createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Orders API] Error creating order:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to create order',
+    });
+  }
+});
+
+/**
+ * GET /relay/orders/:id/status
+ * Get order status for mobile polling
+ */
+router.get('/orders/:id/status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        restaurant: { select: { name: true, estimatedPrepTime: true } },
+        items: { include: { menuItem: { select: { name: true } } } },
+      },
+    });
+
+    if (!order) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Order not found',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: order.id,
+        status: order.status,
+        callStatus: order.callStatus,
+        restaurant: order.restaurant.name,
+        estimatedPrepTime: order.restaurant.estimatedPrepTime,
+        total: order.total,
+        paymentStatus: order.paymentStatus,
+        confirmedAt: order.confirmedAt,
+        createdAt: order.createdAt,
+        items: order.items.map((item) => ({
+          name: item.menuItem.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error('[Orders API] Error fetching order status:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to fetch order status',
+    });
+  }
+});
+
+/**
+ * POST /relay/orders/:id/call
+ * Initiate a phone call for an existing order
+ */
+router.post('/orders/:id/call', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Fetch order with restaurant details
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        restaurant: true,
+        items: { include: { menuItem: { select: { name: true } } } },
+      },
+    });
+
+    if (!order) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Order not found',
+      });
+      return;
+    }
+
+    // Get restaurant phone (use test override if set)
+    const targetPhone = TEST_PHONE_OVERRIDE || order.restaurant.phone;
+
+    if (!targetPhone) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'Restaurant has no phone number configured',
+      });
+      return;
+    }
+
+    console.log(
+      `[ORDER CALL] Order: ${id}, Restaurant: ${order.restaurant.name}, Phone: ${targetPhone}`
+    );
+
+    // Build order details string
+    const orderDetails = order.items
+      .map((item) => `${item.quantity} ${item.menuItem.name}`)
+      .join(', ');
+
+    // Build TwiML script with restaurant-specific notes
+    const script = `
+      Hello, this is Seeker Eats placing an order for pickup.
+      ${order.restaurant.orderNotes || ''}
+      Order: ${orderDetails}.
+      ${order.restaurant.paymentMethod === 'CARD_ON_FILE' ? 'Payment is on our card on file.' : 'We will provide payment details.'}
+      Press 1 to confirm this order.
+      Press 2 to reject this order.
+      Press 3 to repeat this message.
+    `
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Ensure BASE_URL is configured
+    if (!twilioConfig.baseUrl) {
+      throw new Error('BASE_URL is not configured');
+    }
+
+    // Initiate the call with orderId in URL for DTMF tracking
+    const call = await getTwilioClient().calls.create({
+      from: twilioConfig.phoneNumber!,
+      to: targetPhone,
+      url: `${twilioConfig.baseUrl}/twilio/twiml?message=${encodeURIComponent(script)}&orderId=${id}`,
+    });
+
+    // Update order with call info
+    await prisma.order.update({
+      where: { id },
+      data: {
+        callSid: call.sid,
+        callStatus: 'initiated',
+      },
+    });
+
+    // Also store in memory for backward compatibility
+    callStore[call.sid] = {
+      sid: call.sid,
+      orderId: id,
+      phone_number: targetPhone,
+      order_details: orderDetails,
+      status: 'initiated',
+      created_at: new Date().toISOString(),
+    };
+
+    console.log(`[ORDER CALL] Call initiated: ${call.sid}`);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        callSid: call.sid,
+        status: 'initiated',
+        orderId: id,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Orders API] Error initiating call:', error.message);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to initiate call',
     });
   }
 });
