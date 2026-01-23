@@ -68,34 +68,43 @@ async function main() {
   for (const restaurant of PILOT_RESTAURANTS) {
     const { menuItems, ...restaurantData } = restaurant;
 
-    // Upsert restaurant
-    const created = await prisma.restaurant.upsert({
-      where: { name: restaurantData.name },
-      update: restaurantData,
-      create: restaurantData,
-    });
-
-    console.log(`✅ Created/Updated restaurant: ${created.name}`);
-
-    // Delete existing menu items and recreate
-    await prisma.menuItem.deleteMany({ where: { restaurantId: created.id } });
-
-    for (const item of menuItems) {
-      await prisma.menuItem.create({
-        data: {
-          ...item,
-          restaurantId: created.id,
-          available: true,
-        },
+    try {
+      // Upsert restaurant
+      const created = await prisma.restaurant.upsert({
+        where: { name: restaurantData.name },
+        update: restaurantData,
+        create: restaurantData,
       });
-    }
 
-    console.log(`   📋 Added ${menuItems.length} menu items`);
+      console.log(`✅ Created/Updated restaurant: ${created.name}`);
+
+      // Delete existing menu items and recreate
+      await prisma.menuItem.deleteMany({ where: { restaurantId: created.id } });
+
+      for (const item of menuItems) {
+        await prisma.menuItem.create({
+          data: {
+            ...item,
+            restaurantId: created.id,
+            available: true,
+          },
+        });
+      }
+
+      console.log(`   📋 Added ${menuItems.length} menu items`);
+    } catch (error) {
+      console.error(`❌ Failed to seed restaurant: ${restaurantData.name}`);
+      console.error(error);
+      throw error;
+    }
   }
 
   console.log('✨ Seeding complete!');
 }
 
 main()
-  .catch(console.error)
+  .catch((error) => {
+    console.error('Seed failed:', error);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());
