@@ -196,6 +196,29 @@
           </div>
         </div>
       </main>
+
+      <!-- Order Details Modal -->
+      <div id="order-modal" class="modal hidden">
+        <div class="modal-content modal-lg">
+          <div class="modal-header">
+            <h3 id="order-modal-title">Order Details</h3>
+            <button class="close-modal" onclick="closeOrderModal()">&times;</button>
+          </div>
+          <div id="order-details" class="order-details">
+            <!-- Order details loaded here -->
+          </div>
+          <div class="modal-footer">
+            <button
+              id="modal-refund-btn"
+              class="btn btn-danger"
+              onclick="markRefund(currentOrderId)"
+            >
+              Mark for Refund
+            </button>
+            <button class="btn btn-secondary" onclick="closeOrderModal()">Close</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="admin.js"></script>

@@ -274,11 +274,11 @@ router.delete('/api/menu/:id', adminAuth, async (req: Request, res: Response) =>
   }
 });
 
-// ============ ORDERS (Preview for Phase 6) ============
+// ============ ORDERS ADMIN ============
 
 /**
  * GET /admin/api/orders
- * List recent orders
+ * List recent orders with full details
  */
 router.get('/api/orders', adminAuth, async (req: Request, res: Response) => {
   try {
@@ -286,8 +286,9 @@ router.get('/api/orders', adminAuth, async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {
-        restaurant: { select: { name: true } },
-        items: { include: { menuItem: { select: { name: true } } } },
+        restaurant: { select: { name: true, phone: true } },
+        user: { select: { id: true, walletAddress: true } },
+        items: { include: { menuItem: { select: { name: true, price: true } } } },
       },
     });
 
@@ -299,23 +300,98 @@ router.get('/api/orders', adminAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /admin/api/orders/:id
+ * Get single order with full details
+ */
+router.get('/api/orders/:id', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        restaurant: { select: { name: true, phone: true, address: true } },
+        user: { select: { id: true, walletAddress: true } },
+        items: { include: { menuItem: { select: { name: true, price: true } } } },
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    res.json({ success: true, data: order });
+  } catch (error: any) {
+    console.error('[Admin API] Error fetching order:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /admin/api/orders/:id/refund
- * Mark order for refund
+ * Mark order for refund with detailed logging for manual processing
  */
 router.post('/api/orders/:id/refund', adminAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body;
 
-    const order = await prisma.order.update({
+    // Get order with user wallet for refund info
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: { select: { walletAddress: true } },
+        restaurant: { select: { name: true } },
+        items: { include: { menuItem: { select: { name: true } } } },
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Update order status
+    const updated = await prisma.order.update({
       where: { id },
       data: {
         paymentStatus: 'REFUND_PENDING',
         status: 'CANCELLED',
+        rejectedReason: reason || 'Marked for refund by admin',
       },
     });
 
-    console.log(`[REFUND MARKED] Order ${id} marked for refund`);
-    res.json({ success: true, message: 'Order marked for refund', data: order });
+    // Log detailed refund notification for manual processing
+    const refundDetails = {
+      orderId: id,
+      orderDate: order.createdAt,
+      restaurant: order.restaurant?.name,
+      customerWallet: order.user?.walletAddress,
+      paymentTxHash: order.paymentTxHash,
+      refundAmount: order.total,
+      items: order.items.map((i) => `${i.quantity}x ${i.menuItem?.name}`).join(', '),
+      reason: reason || 'Admin refund',
+    };
+
+    console.log('\n' + '='.repeat(60));
+    console.log('[REFUND NOTIFICATION] Order requires manual refund');
+    console.log('='.repeat(60));
+    console.log(JSON.stringify(refundDetails, null, 2));
+    console.log('='.repeat(60) + '\n');
+
+    // Future: Send Discord/email notification here
+    // await sendDiscordNotification(refundDetails);
+    // await sendEmailNotification(refundDetails);
+
+    res.json({
+      success: true,
+      message: 'Order marked for refund. See server logs for refund details.',
+      data: {
+        orderId: id,
+        refundAmount: order.total,
+        customerWallet: order.user?.walletAddress,
+        paymentTxHash: order.paymentTxHash,
+      },
+    });
   } catch (error: any) {
     console.error('[Admin API] Error marking refund:', error);
     res.status(500).json({ success: false, error: error.message });

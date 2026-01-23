@@ -353,6 +353,8 @@ function closeModal() {
 
 // ============ ORDERS ============
 
+let currentOrderId = null;
+
 async function loadOrders() {
   try {
     const res = await api('/orders');
@@ -371,19 +373,25 @@ async function loadOrders() {
         <span>Restaurant</span>
         <span>Total</span>
         <span>Status</span>
+        <span>Call</span>
         <span>Actions</span>
       </div>
       ${orders
         .map(
           (o) => `
-        <div class="order-row" data-id="${o.id}">
-          <span>${o.id.slice(0, 8)}...</span>
+        <div class="order-row clickable" data-id="${o.id}" onclick="viewOrderDetails('${o.id}')">
+          <span class="order-id">${o.id.slice(0, 8)}...</span>
           <span>${o.restaurant?.name || 'Unknown'}</span>
           <span>$${o.total.toFixed(2)}</span>
           <span>
             <span class="status-badge status-${o.status.toLowerCase()}">${o.status}</span>
+            ${o.paymentStatus === 'REFUND_PENDING' ? '<span class="status-badge status-refund">REFUND</span>' : ''}
           </span>
           <span>
+            <span class="status-badge status-${(o.callStatus || 'none').toLowerCase()}">${o.callStatus || '-'}</span>
+          </span>
+          <span class="actions-cell" onclick="event.stopPropagation()">
+            <button class="btn btn-secondary btn-sm" onclick="viewOrderDetails('${o.id}')">View</button>
             ${
               o.paymentStatus !== 'REFUND_PENDING' && o.status !== 'COMPLETED'
                 ? `<button class="btn btn-danger btn-sm" onclick="markRefund('${o.id}')">Refund</button>`
@@ -397,14 +405,150 @@ async function loadOrders() {
     `;
   } catch (err) {
     console.error('Failed to load orders:', err);
+    $('#orders-list').innerHTML = '<p class="empty-state">Failed to load orders</p>';
   }
 }
 
+async function viewOrderDetails(orderId) {
+  try {
+    const res = await api(`/orders/${orderId}`);
+    const order = res.data;
+    currentOrderId = orderId;
+
+    const modal = $('#order-modal');
+    $('#order-modal-title').textContent = `Order ${order.id.slice(0, 8)}...`;
+
+    const itemsList = order.items
+      .map(
+        (i) =>
+          `<li>${i.quantity}x ${i.menuItem?.name || 'Unknown'} - $${(i.price * i.quantity).toFixed(2)}</li>`
+      )
+      .join('');
+
+    $('#order-details').innerHTML = `
+      <div class="order-detail-grid">
+        <div class="detail-group">
+          <label>Order ID</label>
+          <span class="monospace">${order.id}</span>
+        </div>
+        <div class="detail-group">
+          <label>Restaurant</label>
+          <span>${order.restaurant?.name || 'Unknown'}</span>
+        </div>
+        <div class="detail-group">
+          <label>Status</label>
+          <span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span>
+        </div>
+        <div class="detail-group">
+          <label>Call Status</label>
+          <span class="status-badge status-${(order.callStatus || 'none').toLowerCase()}">${order.callStatus || 'Not called'}</span>
+        </div>
+        <div class="detail-group">
+          <label>Payment Status</label>
+          <span class="status-badge status-${(order.paymentStatus || 'pending').toLowerCase()}">${order.paymentStatus || 'PENDING'}</span>
+        </div>
+        <div class="detail-group">
+          <label>Total</label>
+          <span class="price">$${order.total.toFixed(2)}</span>
+        </div>
+      </div>
+      
+      <div class="detail-section">
+        <h4>Customer</h4>
+        <div class="detail-group">
+          <label>Wallet Address</label>
+          <span class="monospace wallet-address">${order.user?.walletAddress || 'N/A'}</span>
+        </div>
+        <div class="detail-group">
+          <label>Delivery Address</label>
+          <span>${order.deliveryAddress || 'N/A'}</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h4>Payment</h4>
+        <div class="detail-group">
+          <label>Payment TX Hash</label>
+          <span class="monospace tx-hash">${order.paymentTxHash || 'N/A'}</span>
+        </div>
+        ${
+          order.refundTxHash
+            ? `
+        <div class="detail-group">
+          <label>Refund TX Hash</label>
+          <span class="monospace tx-hash">${order.refundTxHash}</span>
+        </div>
+        `
+            : ''
+        }
+      </div>
+
+      <div class="detail-section">
+        <h4>Items</h4>
+        <ul class="order-items">${itemsList}</ul>
+      </div>
+
+      ${
+        order.rejectedReason
+          ? `
+      <div class="detail-section">
+        <h4>Rejection Reason</h4>
+        <p class="rejected-reason">${order.rejectedReason}</p>
+      </div>
+      `
+          : ''
+      }
+
+      <div class="detail-section">
+        <h4>Timestamps</h4>
+        <div class="detail-group">
+          <label>Created</label>
+          <span>${new Date(order.createdAt).toLocaleString()}</span>
+        </div>
+        ${
+          order.confirmedAt
+            ? `
+        <div class="detail-group">
+          <label>Confirmed</label>
+          <span>${new Date(order.confirmedAt).toLocaleString()}</span>
+        </div>
+        `
+            : ''
+        }
+      </div>
+    `;
+
+    // Show/hide refund button based on status
+    const refundBtn = $('#modal-refund-btn');
+    if (order.paymentStatus === 'REFUND_PENDING' || order.status === 'COMPLETED') {
+      refundBtn.classList.add('hidden');
+    } else {
+      refundBtn.classList.remove('hidden');
+    }
+
+    modal.classList.remove('hidden');
+  } catch (err) {
+    alert('Failed to load order details: ' + err.message);
+  }
+}
+
+function closeOrderModal() {
+  $('#order-modal').classList.add('hidden');
+  currentOrderId = null;
+}
+
 async function markRefund(orderId) {
-  if (!confirm('Mark this order for refund?')) return;
+  if (
+    !confirm('Mark this order for refund? This will log the refund details for manual processing.')
+  )
+    return;
 
   try {
-    await api(`/orders/${orderId}/refund`, { method: 'POST' });
+    const res = await api(`/orders/${orderId}/refund`, { method: 'POST' });
+    alert(
+      `Order marked for refund!\n\nRefund Amount: $${res.data.refundAmount}\nCustomer Wallet: ${res.data.customerWallet || 'N/A'}\n\nCheck server logs for full details.`
+    );
+    closeOrderModal();
     loadOrders();
   } catch (err) {
     alert('Failed to mark refund: ' + err.message);
@@ -471,5 +615,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Close modal on backdrop click
   $('#menu-modal').addEventListener('click', (e) => {
     if (e.target === $('#menu-modal')) closeModal();
+  });
+
+  // Order modal backdrop close
+  $('#order-modal').addEventListener('click', (e) => {
+    if (e.target === $('#order-modal')) closeOrderModal();
   });
 });
