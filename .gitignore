@@ -46,3 +46,4 @@ next-env.d.ts
 
 # merchant token storage (contains sensitive data)
 data/merchants.json
+data/oauth-states.json

@@ -29,8 +29,13 @@ async function ensureStore(): Promise<void> {
 
 async function readStore(): Promise<StateStore> {
   await ensureStore();
-  const data = await fs.readFile(STATE_PATH, "utf-8");
-  return JSON.parse(data);
+  try {
+    const data = await fs.readFile(STATE_PATH, "utf-8");
+    return JSON.parse(data);
+  } catch {
+    // If file is corrupted or invalid JSON, return empty store
+    return { states: {} };
+  }
 }
 
 async function writeStore(store: StateStore): Promise<void> {
