@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useCart } from '@/context/CartContext';
-import { MenuItem, MenuResponse } from '@/types';
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useCart } from "@/context/CartContext";
+import { MenuItem, MenuResponse } from "@/types";
 
-function formatPrice(cents: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
+function formatPrice(cents: number, currency: string = "USD"): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
     currency,
   }).format(cents / 100);
 }
 
 export default function MenuPage() {
+  const searchParams = useSearchParams();
+  const isSandbox = searchParams.get("sandbox") === "true";
+
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,23 +25,27 @@ export default function MenuPage() {
   useEffect(() => {
     async function fetchMenu() {
       try {
-        const response = await fetch('/api/menu');
+        // Pass sandbox param to API
+        const response = await fetch(`/api/menu?sandbox=${isSandbox}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch menu');
+          throw new Error("Failed to fetch menu");
         }
         const data: MenuResponse = await response.json();
         setMenuItems(data.items);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load menu');
+        setError(err instanceof Error ? err.message : "Failed to load menu");
       } finally {
         setLoading(false);
       }
     }
 
     fetchMenu();
-  }, []);
+  }, [isSandbox]);
 
-  const handleAddToCart = (item: MenuItem, variation: MenuItem['variations'][0]) => {
+  const handleAddToCart = (
+    item: MenuItem,
+    variation: MenuItem["variations"][0],
+  ) => {
     addItem({
       variationId: variation.id,
       itemId: item.id,
@@ -53,14 +61,20 @@ export default function MenuPage() {
       {/* POC Banner */}
       <div className="bg-blue-600 text-white text-sm py-2 px-4 text-center">
         <Link href="/" className="hover:underline">
-          This is a proof of concept demonstrating Square integration. Learn more about the architecture.
+          This is a proof of concept demonstrating Square integration. Learn
+          more about the architecture.
         </Link>
       </div>
 
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-gray-900 hover:text-gray-700">SeekerEats</Link>
+          <Link
+            href="/"
+            className="text-2xl font-bold text-gray-900 hover:text-gray-700"
+          >
+            SeekerEats
+          </Link>
           <Link
             href="/checkout"
             className="relative bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -95,7 +109,9 @@ export default function MenuPage() {
         {!loading && !error && menuItems.length === 0 && (
           <div className="text-center py-12 text-gray-600">
             <p>No menu items available.</p>
-            <p className="text-sm mt-2">Make sure you have items in your Square Catalog.</p>
+            <p className="text-sm mt-2">
+              Make sure you have items in your Square Catalog.
+            </p>
           </div>
         )}
 
@@ -118,7 +134,9 @@ export default function MenuPage() {
                   </div>
                 )}
                 <div className="p-4">
-                  <h3 className="font-semibold text-lg text-gray-900">{item.name}</h3>
+                  <h3 className="font-semibold text-lg text-gray-900">
+                    {item.name}
+                  </h3>
                   {item.description && (
                     <p className="text-gray-600 text-sm mt-1 line-clamp-2">
                       {item.description}
@@ -135,7 +153,10 @@ export default function MenuPage() {
                             {variation.name}
                           </span>
                           <span className="ml-2 font-medium text-gray-900">
-                            {formatPrice(variation.priceCents, variation.currency)}
+                            {formatPrice(
+                              variation.priceCents,
+                              variation.currency,
+                            )}
                           </span>
                         </div>
                         <button
