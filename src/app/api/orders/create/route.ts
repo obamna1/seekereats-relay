@@ -21,15 +21,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No items provided" }, { status: 400 });
     }
 
-    if (
-      !fulfillment?.displayName ||
-      !fulfillment?.phoneNumber ||
-      !fulfillment?.pickupAt
-    ) {
+    if (!fulfillment?.displayName || !fulfillment?.phoneNumber) {
       return NextResponse.json(
         {
-          error:
-            "Fulfillment details are required (displayName, phoneNumber, pickupAt)",
+          error: "Fulfillment details are required (displayName, phoneNumber)",
         },
         { status: 400 },
       );
@@ -45,6 +40,11 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Calculate pickup time: ASAP with 15-min prep buffer
+    const pickupTime = new Date();
+    pickupTime.setMinutes(pickupTime.getMinutes() + 15);
+    const pickupAt = fulfillment.pickupAt || pickupTime.toISOString();
 
     // Create the order with Square (v44 SDK uses .create() method)
     const orderResponse = await client.orders.create({
@@ -64,8 +64,8 @@ export async function POST(request: NextRequest) {
                 displayName: fulfillment.displayName,
                 phoneNumber: fulfillment.phoneNumber,
               },
-              pickupAt: fulfillment.pickupAt,
-              scheduleType: "SCHEDULED",
+              pickupAt: pickupAt,
+              scheduleType: "ASAP",
             },
           },
         ],
