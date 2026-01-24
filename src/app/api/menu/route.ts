@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
-import { catalogApi } from '@/lib/square';
-import { MenuItem, MenuResponse } from '@/types';
+import { NextResponse } from "next/server";
+import { getCatalogApi } from "@/lib/square";
+import { MenuItem, MenuResponse } from "@/types";
 
 // Type helpers for Square catalog objects
 interface SquareMoney {
@@ -40,7 +40,8 @@ export async function GET() {
   try {
     // Fetch catalog items from Square (v44 SDK uses pagination)
     const catalogObjects: SquareCatalogObject[] = [];
-    const catalogPage = await catalogApi.list({ types: 'ITEM' });
+    const catalogApi = getCatalogApi();
+    const catalogPage = await catalogApi.list({ types: "ITEM" });
     for await (const item of catalogPage) {
       catalogObjects.push(item as SquareCatalogObject);
     }
@@ -60,7 +61,8 @@ export async function GET() {
         const imageResponse = await catalogApi.batchGet({
           objectIds: imageIds,
         });
-        const imageObjects = (imageResponse.objects || []) as SquareCatalogObject[];
+        const imageObjects = (imageResponse.objects ||
+          []) as SquareCatalogObject[];
         imageObjects.forEach((img) => {
           if (img.id && img.imageData?.url) {
             imageMap[img.id] = img.imageData.url;
@@ -68,27 +70,30 @@ export async function GET() {
         });
       } catch {
         // Continue without images if fetch fails
-        console.warn('Failed to fetch images');
+        console.warn("Failed to fetch images");
       }
     }
 
     // Transform catalog items to our response format
     const items: MenuItem[] = catalogObjects
-      .filter((obj) => obj.type === 'ITEM' && obj.itemData)
+      .filter((obj) => obj.type === "ITEM" && obj.itemData)
       .map((obj) => {
         const itemData = obj.itemData!;
         const imageId = itemData.imageIds?.[0];
 
         return {
           id: obj.id,
-          name: itemData.name || 'Unnamed Item',
-          description: itemData.description || '',
+          name: itemData.name || "Unnamed Item",
+          description: itemData.description || "",
           imageUrl: imageId ? imageMap[imageId] || null : null,
           variations: (itemData.variations || []).map((variation) => ({
             id: variation.id,
-            name: variation.itemVariationData?.name || 'Regular',
-            priceCents: Number(variation.itemVariationData?.priceMoney?.amount || 0),
-            currency: variation.itemVariationData?.priceMoney?.currency || 'USD',
+            name: variation.itemVariationData?.name || "Regular",
+            priceCents: Number(
+              variation.itemVariationData?.priceMoney?.amount || 0,
+            ),
+            currency:
+              variation.itemVariationData?.priceMoney?.currency || "USD",
           })),
         };
       });
@@ -96,10 +101,10 @@ export async function GET() {
     const response: MenuResponse = { items };
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching menu:', error);
+    console.error("Error fetching menu:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch menu items' },
-      { status: 500 }
+      { error: "Failed to fetch menu items" },
+      { status: 500 },
     );
   }
 }
