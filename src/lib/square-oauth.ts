@@ -6,11 +6,12 @@
 const SQUARE_PRODUCTION_URL = "https://connect.squareup.com";
 const SQUARE_SANDBOX_URL = "https://connect.squareupsandbox.com";
 
-// OAuth scopes needed for orders and payments
+// OAuth scopes needed for catalog, orders and payments
 const OAUTH_SCOPES = [
   "MERCHANT_PROFILE_READ",
-  "PAYMENTS_WRITE",
+  "ITEMS_READ",
   "ORDERS_WRITE",
+  "PAYMENTS_WRITE",
 ].join(" ");
 
 /**
