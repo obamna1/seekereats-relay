@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildAuthorizationUrl, generateState } from "@/lib/square-oauth";
-
-// In-memory state storage (for CSRF protection)
-// In production, use Redis or database
-const stateStore = new Map<string, { isSandbox: boolean; timestamp: number }>();
+import { setOAuthState } from "@/lib/oauth-state-store";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,15 +9,9 @@ export async function GET(request: NextRequest) {
 
     // Generate state for CSRF protection
     const state = generateState();
-    stateStore.set(state, { isSandbox, timestamp: Date.now() });
 
-    // Clean up old states (older than 10 minutes)
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    for (const [key, value] of stateStore.entries()) {
-      if (value.timestamp < tenMinutesAgo) {
-        stateStore.delete(key);
-      }
-    }
+    // Store state in persistent file storage (survives Railway restarts)
+    await setOAuthState(state, { isSandbox, timestamp: Date.now() });
 
     // Build redirect URI
     const redirectUri =
@@ -44,6 +35,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-// Export state store for callback route
-export { stateStore };

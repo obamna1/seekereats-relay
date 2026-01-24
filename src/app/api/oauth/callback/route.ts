@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForToken, getMerchantInfo } from "@/lib/square-oauth";
 import { storeMerchantTokens } from "@/lib/merchant-store";
-import { stateStore } from "../start/route";
+import { getAndDeleteOAuthState } from "@/lib/oauth-state-store";
 
 // Helper to get the base URL for redirects
 function getBaseUrl(request: NextRequest): string {
@@ -39,15 +39,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify state (CSRF protection)
-    const stateData = stateStore.get(state);
+    // Verify state (CSRF protection) - uses persistent file storage
+    const stateData = await getAndDeleteOAuthState(state);
     if (!stateData) {
       return NextResponse.json(
         { success: false, error: "Invalid or expired state parameter" },
         { status: 400 },
       );
     }
-    stateStore.delete(state);
 
     const isSandbox = stateData.isSandbox;
     const redirectUri =

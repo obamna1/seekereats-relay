@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
@@ -13,7 +13,7 @@ function formatPrice(cents: number, currency: string = "USD"): string {
   }).format(cents / 100);
 }
 
-export default function MenuPage() {
+function MenuContent() {
   const searchParams = useSearchParams();
   const isSandbox = searchParams.get("sandbox") === "true";
 
@@ -175,5 +175,21 @@ export default function MenuPage() {
         )}
       </main>
     </div>
+  );
+}
+
+// Wrap in Suspense to fix useSearchParams prerendering issue
+export default function MenuPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Loading...</span>
+        </div>
+      }
+    >
+      <MenuContent />
+    </Suspense>
   );
 }
