@@ -62,6 +62,29 @@ export default function ConnectPage() {
     }
   }
 
+  async function disconnect() {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/merchants/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sandbox: isSandbox }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Clear status and refresh
+        setStatus({ connected: false });
+      } else {
+        throw new Error(data.error || "Failed to disconnect");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to disconnect");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -147,6 +170,12 @@ export default function ConnectPage() {
               >
                 View Menu →
               </Link>
+              <button
+                onClick={disconnect}
+                className="w-full text-center bg-red-100 text-red-700 py-2 rounded-lg font-medium hover:bg-red-200 transition-colors"
+              >
+                🔌 Disconnect
+              </button>
             </div>
           ) : (
             <div className="space-y-4">
