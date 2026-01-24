@@ -3,6 +3,18 @@ import { exchangeCodeForToken, getMerchantInfo } from "@/lib/square-oauth";
 import { storeMerchantTokens } from "@/lib/merchant-store";
 import { stateStore } from "../start/route";
 
+// Helper to get the base URL for redirects
+function getBaseUrl(request: NextRequest): string {
+  // Prefer OAUTH_REDIRECT_URI for production deployments
+  const redirectUri = process.env.OAUTH_REDIRECT_URI;
+  if (redirectUri) {
+    // Extract base URL from redirect URI (remove /api/oauth/callback)
+    return redirectUri.replace(/\/api\/oauth\/callback$/, "");
+  }
+  // Fallback to request origin (works locally)
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -11,9 +23,11 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
+    const baseUrl = getBaseUrl(request);
+
     // Handle OAuth errors
     if (error) {
-      const errorUrl = new URL("/", request.nextUrl.origin);
+      const errorUrl = new URL("/connect", baseUrl);
       errorUrl.searchParams.set("oauth_error", errorDescription || error);
       return NextResponse.redirect(errorUrl.toString());
     }
@@ -61,8 +75,8 @@ export async function GET(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
 
-    // Redirect to success page
-    const successUrl = new URL("/", request.nextUrl.origin);
+    // Redirect to connect page with success
+    const successUrl = new URL("/connect", baseUrl);
     successUrl.searchParams.set("oauth_success", "true");
     successUrl.searchParams.set("merchant_id", tokenData.merchantId);
     successUrl.searchParams.set("sandbox", String(isSandbox));
@@ -70,7 +84,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(successUrl.toString());
   } catch (error) {
     console.error("OAuth callback error:", error);
-    const errorUrl = new URL("/", request.nextUrl.origin);
+    const baseUrl = getBaseUrl(request);
+    const errorUrl = new URL("/connect", baseUrl);
     errorUrl.searchParams.set(
       "oauth_error",
       error instanceof Error ? error.message : "OAuth failed",
