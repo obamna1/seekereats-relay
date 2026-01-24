@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getCatalogApi } from "@/lib/square";
+import { NextRequest, NextResponse } from "next/server";
+import { getSquareClientForMerchant } from "@/lib/square";
 import { MenuItem, MenuResponse } from "@/types";
 
 // Type helpers for Square catalog objects
@@ -36,12 +36,18 @@ interface SquareCatalogObject {
   imageData?: SquareImageData;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Check for sandbox query param
+    const searchParams = request.nextUrl.searchParams;
+    const isSandbox = searchParams.get("sandbox") !== "false"; // default to sandbox
+
+    // Get Square client (uses OAuth token if connected, otherwise env token)
+    const client = await getSquareClientForMerchant(undefined, isSandbox);
+
     // Fetch catalog items from Square (v44 SDK uses pagination)
     const catalogObjects: SquareCatalogObject[] = [];
-    const catalogApi = getCatalogApi();
-    const catalogPage = await catalogApi.list({ types: "ITEM" });
+    const catalogPage = await client.catalog.list({ types: "ITEM" });
     for await (const item of catalogPage) {
       catalogObjects.push(item as SquareCatalogObject);
     }
@@ -58,7 +64,7 @@ export async function GET() {
     const imageMap: Record<string, string> = {};
     if (imageIds.length > 0) {
       try {
-        const imageResponse = await catalogApi.batchGet({
+        const imageResponse = await client.catalog.batchGet({
           objectIds: imageIds,
         });
         const imageObjects = (imageResponse.objects ||
