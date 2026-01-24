@@ -38,9 +38,9 @@ interface SquareCatalogObject {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check for sandbox query param
+    // Check for sandbox query param (default to production)
     const searchParams = request.nextUrl.searchParams;
-    const isSandbox = searchParams.get("sandbox") !== "false"; // default to sandbox
+    const isSandbox = searchParams.get("sandbox") === "true"; // default to production
 
     // Get Square client (uses OAuth token if connected, otherwise env token)
     const client = await getSquareClientForMerchant(undefined, isSandbox);
