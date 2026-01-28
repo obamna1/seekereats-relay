@@ -62,13 +62,14 @@ export async function GET(request: NextRequest) {
       isSandbox,
     );
 
-    // Store tokens
+    // Store tokens with location ID
     await storeMerchantTokens({
       merchantId: tokenData.merchantId,
       accessToken: tokenData.accessToken,
       refreshToken: tokenData.refreshToken,
       expiresAt: tokenData.expiresAt,
       businessName: merchantInfo.businessName,
+      locationId: merchantInfo.mainLocationId,
       isSandbox,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

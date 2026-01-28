@@ -163,32 +163,68 @@ export async function refreshAccessToken(
 
 /**
  * Get merchant info using access token
+ * Also fetches the main location ID for payments
  */
 export async function getMerchantInfo(
   accessToken: string,
   isSandbox: boolean,
-): Promise<{ id: string; businessName?: string }> {
+): Promise<{ id: string; businessName?: string; mainLocationId?: string }> {
   const baseUrl = isSandbox ? SQUARE_SANDBOX_URL : SQUARE_PRODUCTION_URL;
 
-  const response = await fetch(`${baseUrl}/v2/merchants/me`, {
+  // Fetch merchant info
+  const merchantResponse = await fetch(`${baseUrl}/v2/merchants/me`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Square-Version": "2024-01-18",
     },
   });
 
-  const data = (await response.json()) as {
-    merchant?: { id: string; business_name?: string };
+  const merchantData = (await merchantResponse.json()) as {
+    merchant?: {
+      id: string;
+      business_name?: string;
+      main_location_id?: string;
+    };
     errors?: Array<{ detail: string }>;
   };
 
-  if (!response.ok || data.errors) {
-    throw new Error(data.errors?.[0]?.detail || "Failed to get merchant info");
+  if (!merchantResponse.ok || merchantData.errors) {
+    throw new Error(
+      merchantData.errors?.[0]?.detail || "Failed to get merchant info",
+    );
+  }
+
+  // If main_location_id is in merchant data, use it
+  let mainLocationId = merchantData.merchant?.main_location_id;
+
+  // If not, fetch locations and use the first active one
+  if (!mainLocationId) {
+    try {
+      const locationsResponse = await fetch(`${baseUrl}/v2/locations`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Square-Version": "2024-01-18",
+        },
+      });
+
+      const locationsData = (await locationsResponse.json()) as {
+        locations?: Array<{ id: string; status?: string }>;
+      };
+
+      // Find first active location
+      const activeLocation = locationsData.locations?.find(
+        (loc) => loc.status === "ACTIVE",
+      );
+      mainLocationId = activeLocation?.id || locationsData.locations?.[0]?.id;
+    } catch (err) {
+      console.warn("Failed to fetch locations:", err);
+    }
   }
 
   return {
-    id: data.merchant!.id,
-    businessName: data.merchant?.business_name,
+    id: merchantData.merchant!.id,
+    businessName: merchantData.merchant?.business_name,
+    mainLocationId,
   };
 }
 
