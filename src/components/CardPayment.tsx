@@ -176,18 +176,23 @@ export default function CardPayment({
         {isSandbox ? "🧪 Sandbox Mode" : "💳 Production Mode"}
       </div>
 
-      {/* Card input container */}
-      <div className="border border-gray-300 rounded-lg p-4 bg-white min-h-[56px]">
-        {loading ? (
-          <div className="flex items-center justify-center h-8">
+      {/* Card input container - always present for Square SDK attachment */}
+      <div className="border border-gray-300 rounded-lg p-4 bg-white">
+        {loading && (
+          <div className="flex items-center justify-center h-12">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
             <span className="ml-2 text-sm text-gray-600">
               Loading payment form...
             </span>
           </div>
-        ) : (
-          <div id="card-container" ref={containerRef}></div>
         )}
+        {/* Container is always rendered, visibility controlled by loading state */}
+        <div
+          id="card-container"
+          ref={containerRef}
+          className={loading ? "hidden" : ""}
+          style={{ minHeight: "56px" }}
+        ></div>
       </div>
 
       {/* Pay button */}
