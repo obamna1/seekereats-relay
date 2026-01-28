@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Currency } from "square";
-import {
-  getSquareClientForMerchant,
-  locationId as defaultLocationId,
-} from "@/lib/square";
+import { getSquareClientForMerchant } from "@/lib/square";
+import { getSquareConfig } from "@/lib/square-config";
 import { PayOrderRequest, PayOrderResponse } from "@/types";
 import crypto from "crypto";
 
@@ -25,6 +23,7 @@ export async function POST(request: NextRequest) {
       locationId,
       sandbox,
     } = body;
+    const isSandbox = sandbox ?? true; // Default to sandbox for safety
 
     if (!orderId) {
       return NextResponse.json(
@@ -48,12 +47,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Square client (uses merchant token if available, otherwise default)
-    const client = await getSquareClientForMerchant(merchantId, sandbox);
-    const targetLocationId = locationId || defaultLocationId;
+    const client = await getSquareClientForMerchant(merchantId, isSandbox);
+
+    // Get locationId: prefer explicit param, then from OAuth tokens
+    let targetLocationId = locationId;
+    if (!targetLocationId) {
+      try {
+        const config = await getSquareConfig(isSandbox, merchantId);
+        targetLocationId = config.locationId;
+      } catch (err) {
+        console.error("Failed to get location from config:", err);
+      }
+    }
 
     if (!targetLocationId) {
       return NextResponse.json(
-        { error: "Location ID is required" },
+        { error: "Location ID is required - please connect via OAuth first" },
         { status: 400 },
       );
     }
