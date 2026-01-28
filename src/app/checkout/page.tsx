@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { CreateOrderResponse, PayOrderResponse } from "@/types";
 import dynamic from "next/dynamic";
 
-// Dynamic import to avoid SSR issues with Square SDK
+// Dynamic imports to avoid SSR issues
 const CardPayment = dynamic(() => import("@/components/CardPayment"), {
   ssr: false,
   loading: () => (
@@ -16,6 +16,19 @@ const CardPayment = dynamic(() => import("@/components/CardPayment"), {
     </div>
   ),
 });
+
+const MerchantSelector = dynamic(
+  () => import("@/components/MerchantSelector"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+        Loading...
+      </div>
+    ),
+  },
+);
 
 function formatPrice(cents: number, currency: string = "USD"): string {
   return new Intl.NumberFormat("en-US", {
@@ -34,11 +47,21 @@ function CheckoutContent() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [isSandbox, setIsSandbox] = useState(initialSandbox);
+  const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderAmount, setOrderAmount] = useState<number>(0);
   const [orderCurrency, setOrderCurrency] = useState<string>("USD");
+
+  // Memoize merchant selection handler to avoid infinite loops
+  const handleMerchantSelect = useCallback((merchantId: string | null) => {
+    setSelectedMerchantId(merchantId);
+    setOrderId(null); // Reset order when merchant changes
+    setError(null);
+  }, []);
 
   // Step 1: Create order with customer info
   const handleCreateOrder = async (e: React.FormEvent) => {
@@ -249,6 +272,13 @@ function CheckoutContent() {
                   Pickup Details
                 </h2>
                 <form onSubmit={handleCreateOrder} className="space-y-4">
+                  {/* Restaurant Selector */}
+                  <MerchantSelector
+                    isSandbox={isSandbox}
+                    selectedMerchantId={selectedMerchantId}
+                    onSelect={handleMerchantSelect}
+                  />
+
                   <div>
                     <label
                       htmlFor="name"
@@ -331,6 +361,7 @@ function CheckoutContent() {
 
                 <CardPayment
                   isSandbox={isSandbox}
+                  merchantId={selectedMerchantId || undefined}
                   onTokenize={handlePayment}
                   onError={handlePaymentError}
                   disabled={loading}

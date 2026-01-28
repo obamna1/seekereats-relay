@@ -1,24 +1,29 @@
 /**
  * Square configuration helper
- * Returns environment-specific Square settings
+ * Returns environment-specific Square settings with dynamic location from OAuth
  */
+
+import { getCurrentMerchantTokens, getMerchantTokens } from "./merchant-store";
 
 export interface SquareConfig {
   applicationId: string;
   locationId: string;
   environment: "sandbox" | "production";
+  merchantId?: string;
+  merchantName?: string;
 }
 
 /**
  * Get Square config for the specified environment
- * Safe to expose to frontend (no secrets)
+ * Pulls location dynamically from OAuth tokens instead of env vars
  */
-export function getSquareConfig(isSandbox: boolean): SquareConfig {
+export async function getSquareConfig(
+  isSandbox: boolean,
+  merchantId?: string,
+): Promise<SquareConfig> {
   const applicationId = isSandbox
     ? process.env.SQUARE_SANDBOX_APPLICATION_ID
     : process.env.SQUARE_APPLICATION_ID;
-
-  const locationId = process.env.SQUARE_LOCATION_ID || "";
 
   if (!applicationId) {
     throw new Error(
@@ -26,10 +31,29 @@ export function getSquareConfig(isSandbox: boolean): SquareConfig {
     );
   }
 
+  // Get merchant from OAuth store - either specific or current
+  const merchant = merchantId
+    ? await getMerchantTokens(merchantId, isSandbox)
+    : await getCurrentMerchantTokens(isSandbox);
+
+  if (!merchant) {
+    throw new Error(
+      `No ${isSandbox ? "sandbox" : "production"} merchant connected. Please complete OAuth first.`,
+    );
+  }
+
+  if (!merchant.locationId) {
+    throw new Error(
+      `Merchant ${merchant.businessName || merchant.merchantId} has no location ID stored.`,
+    );
+  }
+
   return {
     applicationId,
-    locationId,
+    locationId: merchant.locationId,
     environment: isSandbox ? "sandbox" : "production",
+    merchantId: merchant.merchantId,
+    merchantName: merchant.businessName,
   };
 }
 

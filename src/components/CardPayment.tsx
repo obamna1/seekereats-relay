@@ -29,6 +29,7 @@ interface TokenResult {
 
 interface CardPaymentProps {
   isSandbox: boolean;
+  merchantId?: string;
   onTokenize: (sourceId: string) => void;
   onError: (error: string) => void;
   disabled?: boolean;
@@ -42,6 +43,7 @@ interface SquareConfig {
 
 export default function CardPayment({
   isSandbox,
+  merchantId,
   onTokenize,
   onError,
   disabled = false,
@@ -59,8 +61,11 @@ export default function CardPayment({
     initializingRef.current = true;
 
     try {
-      // Fetch config from API
-      const configRes = await fetch(`/api/config?sandbox=${isSandbox}`);
+      // Fetch config from API (includes merchantId for correct location)
+      const merchantParam = merchantId ? `&merchantId=${merchantId}` : "";
+      const configRes = await fetch(
+        `/api/config?sandbox=${isSandbox}${merchantParam}`,
+      );
       const configData = await configRes.json();
 
       if (!configData.success) {
@@ -101,7 +106,7 @@ export default function CardPayment({
       setLoading(false);
       initializingRef.current = false;
     }
-  }, [isSandbox, onError]);
+  }, [isSandbox, merchantId, onError]);
 
   // Load script helper
   const loadScript = (src: string): Promise<void> => {
