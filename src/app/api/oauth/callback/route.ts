@@ -75,8 +75,13 @@ export async function GET(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
 
-    // Redirect to connect page with success
-    const successUrl = new URL("/connect", baseUrl);
+    // Redirect to custom URL if provided, otherwise to connect page
+    let successUrl: URL;
+    if (stateData.redirectUrl) {
+      successUrl = new URL(stateData.redirectUrl);
+    } else {
+      successUrl = new URL("/connect", baseUrl);
+    }
     successUrl.searchParams.set("oauth_success", "true");
     successUrl.searchParams.set("merchant_id", tokenData.merchantId);
     successUrl.searchParams.set("sandbox", String(isSandbox));

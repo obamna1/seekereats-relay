@@ -9,6 +9,7 @@ import path from "path";
 interface StateData {
   isSandbox: boolean;
   timestamp: number;
+  redirectUrl?: string; // Optional: URL to redirect user after OAuth callback
 }
 
 interface StateStore {
