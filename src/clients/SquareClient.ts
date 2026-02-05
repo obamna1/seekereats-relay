@@ -1,48 +1,78 @@
 /**
  * Square API Client for Express backend
- * Handles menu fetching, order creation, and payment processing
+ * Supports both sandbox and production environments with OAuth or env token
  */
 
 import { SquareClient, SquareEnvironment } from 'square';
+import { getCurrentMerchantTokens, getMerchantTokens, MerchantTokens } from '../lib/merchant-store';
 
-// Get environment configuration
+// Environment configuration
 const SQUARE_ACCESS_TOKEN = process.env.SQUARE_ACCESS_TOKEN;
 const SQUARE_LOCATION_ID = process.env.SQUARE_LOCATION_ID;
-const SQUARE_ENVIRONMENT =
-  process.env.SQUARE_ENV === 'production'
-    ? SquareEnvironment.Production
-    : SquareEnvironment.Sandbox;
-
-// Company card token for placing orders (tokenized via Square Web Payments SDK)
 const COMPANY_CARD_TOKEN = process.env.COMPANY_CARD_TOKEN || 'cnon:card-nonce-ok';
 
-// Initialize Square client
-let squareClient: SquareClient | null = null;
+// Client cache per environment
+const clientCache: { sandbox: SquareClient | null; production: SquareClient | null } = {
+  sandbox: null,
+  production: null,
+};
 
-function getClient(): SquareClient {
-  if (!squareClient) {
-    if (!SQUARE_ACCESS_TOKEN) {
-      throw new Error('SQUARE_ACCESS_TOKEN environment variable is required');
-    }
-    squareClient = new SquareClient({
-      token: SQUARE_ACCESS_TOKEN,
-      environment: SQUARE_ENVIRONMENT,
+/**
+ * Get Square client for a specific environment
+ * Tries OAuth tokens first, falls back to env vars
+ */
+export async function getClient(isSandbox = true): Promise<SquareClient> {
+  // Try to get OAuth tokens first
+  const tokens = await getCurrentMerchantTokens(isSandbox);
+
+  if (tokens) {
+    console.log(`[SquareClient] Using OAuth token for ${tokens.businessName || tokens.merchantId}`);
+    return new SquareClient({
+      token: tokens.accessToken,
+      environment: isSandbox ? SquareEnvironment.Sandbox : SquareEnvironment.Production,
     });
   }
-  return squareClient;
+
+  // Fall back to environment variable
+  if (!SQUARE_ACCESS_TOKEN) {
+    throw new Error(
+      `No ${isSandbox ? 'sandbox' : 'production'} merchant connected and SQUARE_ACCESS_TOKEN not set`
+    );
+  }
+
+  const cacheKey = isSandbox ? 'sandbox' : 'production';
+  if (!clientCache[cacheKey]) {
+    clientCache[cacheKey] = new SquareClient({
+      token: SQUARE_ACCESS_TOKEN,
+      environment: isSandbox ? SquareEnvironment.Sandbox : SquareEnvironment.Production,
+    });
+  }
+
+  return clientCache[cacheKey]!;
 }
 
-function getLocationId(): string {
-  if (!SQUARE_LOCATION_ID) {
-    throw new Error('SQUARE_LOCATION_ID environment variable is required');
+/**
+ * Get location ID for the current environment
+ */
+export async function getLocationId(isSandbox = true): Promise<string> {
+  // Try OAuth tokens first
+  const tokens = await getCurrentMerchantTokens(isSandbox);
+  if (tokens?.locationId) {
+    return tokens.locationId;
   }
-  return SQUARE_LOCATION_ID;
+
+  // Fall back to env var
+  if (SQUARE_LOCATION_ID) {
+    return SQUARE_LOCATION_ID;
+  }
+
+  throw new Error(`No location ID configured for ${isSandbox ? 'sandbox' : 'production'}`);
 }
 
 /**
  * Fetch menu items from Square Catalog
  */
-export async function getMenu(): Promise<{
+export async function getMenu(isSandbox = true): Promise<{
   items: Array<{
     id: string;
     name: string;
@@ -56,7 +86,7 @@ export async function getMenu(): Promise<{
     }>;
   }>;
 }> {
-  const client = getClient();
+  const client = await getClient(isSandbox);
 
   const response = await client.catalog.list({
     types: 'ITEM',
@@ -89,7 +119,10 @@ export async function getMenu(): Promise<{
 /**
  * Quote an order - calculate total from catalog prices
  */
-export async function quoteOrder(items: Array<{ variationId: string; quantity: number }>): Promise<{
+export async function quoteOrder(
+  items: Array<{ variationId: string; quantity: number }>,
+  isSandbox = true
+): Promise<{
   totalCents: number;
   currency: string;
   itemBreakdown: Array<{
@@ -100,7 +133,7 @@ export async function quoteOrder(items: Array<{ variationId: string; quantity: n
     totalCents: number;
   }>;
 }> {
-  const client = getClient();
+  const client = await getClient(isSandbox);
 
   // Batch retrieve catalog objects
   const variationIds = items.map((item) => item.variationId);
@@ -113,7 +146,6 @@ export async function quoteOrder(items: Array<{ variationId: string; quantity: n
   const priceMap = new Map<string, { name: string; priceCents: number; currency: string }>();
 
   for (const obj of objects) {
-    // Use type assertion for itemVariationData access
     const variationData = (obj as any).itemVariationData;
     if (obj.type === 'ITEM_VARIATION' && variationData) {
       const priceMoney = variationData.priceMoney;
@@ -161,14 +193,16 @@ export async function createOrder(params: {
     phoneNumber: string;
     pickupAt?: string;
   };
+  isSandbox?: boolean;
 }): Promise<{
   orderId: string;
   orderVersion: number;
   totalAmountCents: number;
   currency: string;
 }> {
-  const client = getClient();
-  const locationId = getLocationId();
+  const isSandbox = params.isSandbox ?? true;
+  const client = await getClient(isSandbox);
+  const locationId = await getLocationId(isSandbox);
   const { items, fulfillment } = params;
 
   // Default pickup time: 15 minutes from now
@@ -221,13 +255,15 @@ export async function payOrder(params: {
   amountCents: number;
   currency?: string;
   note?: string;
+  isSandbox?: boolean;
 }): Promise<{
   paymentId: string;
   status: string;
   orderId: string;
 }> {
-  const client = getClient();
-  const locationId = getLocationId();
+  const isSandbox = params.isSandbox ?? true;
+  const client = await getClient(isSandbox);
+  const locationId = await getLocationId(isSandbox);
   const { orderId, amountCents, currency = 'USD', note } = params;
 
   const response = await client.payments.create({
@@ -257,14 +293,29 @@ export async function payOrder(params: {
 /**
  * Get Square configuration status
  */
-export function getConfig(): {
+export async function getConfig(isSandbox = true): Promise<{
   configured: boolean;
   environment: string;
   locationId?: string;
-} {
+  merchantName?: string;
+  usingOAuth: boolean;
+}> {
+  const tokens = await getCurrentMerchantTokens(isSandbox);
+
+  if (tokens) {
+    return {
+      configured: true,
+      environment: isSandbox ? 'sandbox' : 'production',
+      locationId: tokens.locationId,
+      merchantName: tokens.businessName,
+      usingOAuth: true,
+    };
+  }
+
   return {
     configured: !!(SQUARE_ACCESS_TOKEN && SQUARE_LOCATION_ID),
-    environment: process.env.SQUARE_ENV || 'sandbox',
+    environment: isSandbox ? 'sandbox' : 'production',
     locationId: SQUARE_LOCATION_ID,
+    usingOAuth: false,
   };
 }

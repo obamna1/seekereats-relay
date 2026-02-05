@@ -8,6 +8,8 @@
  * - POST /square/orders/create  - Create a Square order
  * - POST /square/orders/pay     - Pay for an order with company card
  * - POST /square/orders/submit  - Validate Solana + Create + Pay
+ *
+ * All endpoints accept ?sandbox=true/false query param or sandbox field in body
  */
 
 import { Router, Request, Response } from 'express';
@@ -17,14 +19,35 @@ import { validateSolanaPayment, getValidatorConfig } from '../lib/solana-validat
 const router = Router();
 
 /**
- * GET /square/menu
+ * Helper to get sandbox flag from request
+ */
+function isSandbox(req: Request): boolean {
+  // Check query param first
+  const queryVal = req.query.sandbox;
+  if (queryVal !== undefined) {
+    return queryVal === 'true';
+  }
+  // Check body
+  if (req.body?.sandbox !== undefined) {
+    return req.body.sandbox === 'true' || req.body.sandbox === true;
+  }
+  // Default to sandbox for safety
+  return true;
+}
+
+/**
+ * GET /square/menu?sandbox=true
  * Fetch menu items from Square Catalog
  */
 router.get('/menu', async (req: Request, res: Response) => {
   try {
-    const menu = await SquareClient.getMenu();
+    const sandbox = isSandbox(req);
+    console.log(`[Square] Fetching menu (sandbox: ${sandbox})`);
+
+    const menu = await SquareClient.getMenu(sandbox);
     res.status(200).json({
       success: true,
+      environment: sandbox ? 'sandbox' : 'production',
       data: menu,
     });
   } catch (error: any) {
@@ -37,19 +60,28 @@ router.get('/menu', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /square/config
+ * GET /square/config?sandbox=true
  * Get Square and Solana configuration status
  */
-router.get('/config', (req: Request, res: Response) => {
-  const squareConfig = SquareClient.getConfig();
-  const solanaConfig = getValidatorConfig();
-  res.status(200).json({
-    success: true,
-    data: {
-      square: squareConfig,
-      solana: solanaConfig,
-    },
-  });
+router.get('/config', async (req: Request, res: Response) => {
+  try {
+    const sandbox = isSandbox(req);
+    const squareConfig = await SquareClient.getConfig(sandbox);
+    const solanaConfig = getValidatorConfig();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        square: squareConfig,
+        solana: solanaConfig,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get config',
+    });
+  }
 });
 
 /**
@@ -59,6 +91,7 @@ router.get('/config', (req: Request, res: Response) => {
 router.post('/orders/quote', async (req: Request, res: Response) => {
   try {
     const { items } = req.body;
+    const sandbox = isSandbox(req);
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({
@@ -68,9 +101,12 @@ router.post('/orders/quote', async (req: Request, res: Response) => {
       return;
     }
 
-    const quote = await SquareClient.quoteOrder(items);
+    console.log(`[Square] Quoting order (sandbox: ${sandbox})`);
+    const quote = await SquareClient.quoteOrder(items, sandbox);
+
     res.status(200).json({
       success: true,
+      environment: sandbox ? 'sandbox' : 'production',
       ...quote,
       estimatedPickupMinutes: 15,
     });
@@ -90,6 +126,7 @@ router.post('/orders/quote', async (req: Request, res: Response) => {
 router.post('/orders/create', async (req: Request, res: Response) => {
   try {
     const { items, fulfillment } = req.body;
+    const sandbox = isSandbox(req);
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({
@@ -107,9 +144,12 @@ router.post('/orders/create', async (req: Request, res: Response) => {
       return;
     }
 
-    const order = await SquareClient.createOrder({ items, fulfillment });
+    console.log(`[Square] Creating order (sandbox: ${sandbox})`);
+    const order = await SquareClient.createOrder({ items, fulfillment, isSandbox: sandbox });
+
     res.status(201).json({
       success: true,
+      environment: sandbox ? 'sandbox' : 'production',
       ...order,
     });
   } catch (error: any) {
@@ -128,6 +168,7 @@ router.post('/orders/create', async (req: Request, res: Response) => {
 router.post('/orders/pay', async (req: Request, res: Response) => {
   try {
     const { orderId, amountCents, currency, note } = req.body;
+    const sandbox = isSandbox(req);
 
     if (!orderId) {
       res.status(400).json({
@@ -145,15 +186,23 @@ router.post('/orders/pay', async (req: Request, res: Response) => {
       return;
     }
 
-    const payment = await SquareClient.payOrder({ orderId, amountCents, currency, note });
+    console.log(`[Square] Paying order ${orderId} (sandbox: ${sandbox})`);
+    const payment = await SquareClient.payOrder({
+      orderId,
+      amountCents,
+      currency,
+      note,
+      isSandbox: sandbox,
+    });
+
     res.status(200).json({
       success: true,
+      environment: sandbox ? 'sandbox' : 'production',
       ...payment,
     });
   } catch (error: any) {
     console.error('[Square] Error paying order:', error.message);
 
-    // Check for Square API errors
     if (error.errors) {
       res.status(400).json({
         success: false,
@@ -179,15 +228,8 @@ router.post('/orders/pay', async (req: Request, res: Response) => {
  */
 router.post('/orders/submit', async (req: Request, res: Response) => {
   try {
-    const {
-      items,
-      fulfillment,
-      solanaTxSignature,
-      expectedTotalCents,
-      sandbox = true, // Default to sandbox/test mode
-    } = req.body;
-
-    const isSandbox = sandbox === true || sandbox === 'true';
+    const { items, fulfillment, solanaTxSignature, expectedTotalCents } = req.body;
+    const sandbox = isSandbox(req);
 
     // Validate inputs
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -214,17 +256,17 @@ router.post('/orders/submit', async (req: Request, res: Response) => {
       return;
     }
 
+    console.log(`[Square] Submit order (sandbox: ${sandbox})`);
+
     // ====================================================
     // STEP 1: Validate Solana payment on-chain
     // ====================================================
     console.log('[Square] Step 1: Validating Solana transaction...');
-    console.log('[Square] Signature:', solanaTxSignature);
-    console.log('[Square] Test mode:', isSandbox);
 
     const validationResult = await validateSolanaPayment({
       signature: solanaTxSignature,
       expectedAmountCents: expectedTotalCents || 0,
-      isTestMode: isSandbox,
+      isTestMode: sandbox,
     });
 
     if (!validationResult.valid) {
@@ -242,9 +284,8 @@ router.post('/orders/submit', async (req: Request, res: Response) => {
     // STEP 2: Quote to verify current prices
     // ====================================================
     console.log('[Square] Step 2: Quoting order...');
-    const quote = await SquareClient.quoteOrder(items);
+    const quote = await SquareClient.quoteOrder(items, sandbox);
 
-    // Verify amount matches expected (allow $0.01 variance for rounding)
     if (expectedTotalCents && Math.abs(quote.totalCents - expectedTotalCents) > 1) {
       res.status(400).json({
         success: false,
@@ -257,7 +298,7 @@ router.post('/orders/submit', async (req: Request, res: Response) => {
     // STEP 3: Create Square order
     // ====================================================
     console.log('[Square] Step 3: Creating order...');
-    const order = await SquareClient.createOrder({ items, fulfillment });
+    const order = await SquareClient.createOrder({ items, fulfillment, isSandbox: sandbox });
     console.log('[Square] Order created:', order.orderId);
 
     // ====================================================
@@ -269,6 +310,7 @@ router.post('/orders/submit', async (req: Request, res: Response) => {
       amountCents: order.totalAmountCents,
       currency: order.currency,
       note: `SeekerEats - Solana: ${solanaTxSignature.slice(0, 20)}...`,
+      isSandbox: sandbox,
     });
 
     console.log('[Square] Payment complete:', payment.paymentId, payment.status);
@@ -278,6 +320,7 @@ router.post('/orders/submit', async (req: Request, res: Response) => {
     // ====================================================
     res.status(201).json({
       success: true,
+      environment: sandbox ? 'sandbox' : 'production',
       orderId: order.orderId,
       paymentId: payment.paymentId,
       status: payment.status,
