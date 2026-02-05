@@ -9,6 +9,7 @@ import relayRoutes from './routes/relay';
 import twilioRoutes from './routes/twilio';
 import restaurantRoutes from './routes/restaurants';
 import waitlistRoutes from './routes/waitlist';
+import squareRoutes from './routes/square';
 
 const app = express();
 
@@ -35,8 +36,11 @@ app.get('/', (req: Request, res: Response) => {
       callStatus: 'GET /relay/order-call/{call_sid}/status',
       config: 'GET /relay/config',
       twiml: 'POST /twilio/twiml',
+      squareMenu: 'GET /square/menu',
+      squareQuote: 'POST /square/orders/quote',
+      squareSubmit: 'POST /square/orders/submit',
     },
-    note: 'All /relay endpoints require X-Relay-Secret header',
+    note: 'All /relay and /square endpoints require X-Relay-Secret header',
   });
 });
 
@@ -56,6 +60,9 @@ app.use('/waitlist', waitlistRoutes);
 
 // Protected relay routes
 app.use('/relay', authMiddleware, relayRoutes);
+
+// Protected Square routes
+app.use('/square', authMiddleware, squareRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
