@@ -11,7 +11,7 @@
  */
 
 import { SquareClient, SquareEnvironment } from 'square';
-import { getCurrentMerchant } from '../services/merchantService';
+import { getCurrentMerchant, getMerchantBySquareId } from '../services/merchantService';
 
 // Sandbox credentials (from Developer Console)
 const SANDBOX_ACCESS_TOKEN = process.env.SQUARE_ACCESS_TOKEN;
@@ -25,7 +25,7 @@ const PROD_LOCATION_ID = process.env.SQUARE_PROD_LOCATION_ID;
 const COMPANY_CARD_TOKEN = process.env.COMPANY_CARD_TOKEN || 'cnon:card-nonce-ok';
 
 /**
- * Get Square client for specified environment
+ * Get Square client for specified environment (uses default/first merchant)
  */
 export async function getClient(isSandbox: boolean): Promise<SquareClient> {
   if (isSandbox) {
@@ -62,7 +62,47 @@ export async function getClient(isSandbox: boolean): Promise<SquareClient> {
 }
 
 /**
- * Get location ID for specified environment
+ * Get Square client for a specific merchant by Square merchant ID
+ */
+export async function getClientForMerchant(
+  merchantId: string,
+  isSandbox: boolean
+): Promise<{ client: SquareClient; locationId: string }> {
+  if (isSandbox) {
+    // Sandbox: use env var access token
+    if (!SANDBOX_ACCESS_TOKEN || !SANDBOX_LOCATION_ID) {
+      throw new Error('Sandbox credentials not configured');
+    }
+    return {
+      client: new SquareClient({
+        token: SANDBOX_ACCESS_TOKEN,
+        environment: SquareEnvironment.Sandbox,
+      }),
+      locationId: SANDBOX_LOCATION_ID,
+    };
+  }
+
+  // Production: get specific merchant from database
+  const merchant = await getMerchantBySquareId(merchantId, isSandbox);
+  if (!merchant) {
+    throw new Error(`Merchant ${merchantId} not found`);
+  }
+
+  if (!merchant.locationId) {
+    throw new Error(`Merchant ${merchantId} has no location configured`);
+  }
+
+  return {
+    client: new SquareClient({
+      token: merchant.accessToken,
+      environment: SquareEnvironment.Production,
+    }),
+    locationId: merchant.locationId,
+  };
+}
+
+/**
+ * Get location ID for specified environment (uses default/first merchant)
  */
 export async function getLocationId(isSandbox: boolean): Promise<string> {
   if (isSandbox) {

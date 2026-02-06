@@ -15,6 +15,8 @@
 import { Router, Request, Response } from 'express';
 import * as SquareClient from '../clients/SquareClient';
 import { validateSolanaPayment, getValidatorConfig } from '../lib/solana-validator';
+import { getMerchantBySquareId } from '../services/merchantService';
+import { SquareClient as SquareSDK, SquareEnvironment } from 'square';
 
 const router = Router();
 
@@ -36,15 +38,48 @@ function isSandbox(req: Request): boolean {
 }
 
 /**
- * GET /square/menu?sandbox=true
+ * GET /square/menu?sandbox=true&merchantId=xxx
  * Fetch menu items from Square Catalog
+ * Optional merchantId for specific restaurant
  */
 router.get('/menu', async (req: Request, res: Response) => {
   try {
     const sandbox = isSandbox(req);
-    console.log(`[Square] Fetching menu (sandbox: ${sandbox})`);
+    const merchantId = req.query.merchantId as string | undefined;
+    console.log(
+      `[Square] Fetching menu (sandbox: ${sandbox}, merchant: ${merchantId || 'default'})`
+    );
 
-    const menu = await SquareClient.getMenu(sandbox);
+    let menu;
+    if (merchantId && !sandbox) {
+      // Get specific merchant's catalog
+      const { client, locationId } = await SquareClient.getClientForMerchant(merchantId, sandbox);
+      // Fetch catalog using the merchant-specific client
+      const response = await client.catalog.list({ types: 'ITEM' });
+      const items = [];
+      for await (const obj of response) {
+        if (obj.type === 'ITEM' && obj.itemData) {
+          const variations = (obj.itemData.variations || []).map((v: any) => ({
+            id: v.id || '',
+            name: v.itemVariationData?.name || 'Regular',
+            priceCents: Number(v.itemVariationData?.priceMoney?.amount || 0),
+            currency: v.itemVariationData?.priceMoney?.currency || 'USD',
+          }));
+          items.push({
+            id: obj.id || '',
+            name: obj.itemData.name || 'Unnamed Item',
+            description: obj.itemData.description || '',
+            imageUrl: null,
+            variations,
+          });
+        }
+      }
+      menu = { items };
+    } else {
+      // Use default merchant
+      menu = await SquareClient.getMenu(sandbox);
+    }
+
     res.status(200).json({
       success: true,
       environment: sandbox ? 'sandbox' : 'production',
