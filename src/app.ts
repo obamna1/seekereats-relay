@@ -10,6 +10,8 @@ import twilioRoutes from './routes/twilio';
 import restaurantRoutes from './routes/restaurants';
 import waitlistRoutes from './routes/waitlist';
 import squareRoutes from './routes/square';
+import oauthRoutes from './routes/oauth';
+import merchantRoutes from './routes/merchants';
 
 const app = express();
 
@@ -39,6 +41,9 @@ app.get('/', (req: Request, res: Response) => {
       squareMenu: 'GET /square/menu',
       squareQuote: 'POST /square/orders/quote',
       squareSubmit: 'POST /square/orders/submit',
+      oauthStart: 'GET /oauth/start',
+      oauthCallback: 'GET /oauth/callback',
+      merchants: 'GET /merchants',
     },
     note: 'All /relay and /square endpoints require X-Relay-Secret header',
   });
@@ -57,6 +62,12 @@ app.use('/twilio', twilioRoutes);
 
 // Public Waitlist routes
 app.use('/waitlist', waitlistRoutes);
+
+// Public OAuth routes (for restaurant onboarding from landing page)
+app.use('/oauth', oauthRoutes);
+
+// Public Merchants routes (list connected restaurants)
+app.use('/merchants', merchantRoutes);
 
 // Protected relay routes
 app.use('/relay', authMiddleware, relayRoutes);

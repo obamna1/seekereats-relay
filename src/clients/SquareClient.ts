@@ -11,7 +11,7 @@
  */
 
 import { SquareClient, SquareEnvironment } from 'square';
-import { getCurrentMerchantTokens } from '../lib/merchant-store';
+import { getCurrentMerchant } from '../services/merchantService';
 
 // Sandbox credentials (from Developer Console)
 const SANDBOX_ACCESS_TOKEN = process.env.SQUARE_ACCESS_TOKEN;
@@ -40,13 +40,13 @@ export async function getClient(isSandbox: boolean): Promise<SquareClient> {
   }
 
   // Production: try OAuth first, then env var fallback
-  const oauthTokens = await getCurrentMerchantTokens(false);
-  if (oauthTokens) {
+  const oauthMerchant = await getCurrentMerchant(false);
+  if (oauthMerchant) {
     console.log(
-      `[Square] Using OAuth tokens for ${oauthTokens.businessName || oauthTokens.merchantId}`
+      `[Square] Using OAuth tokens for ${oauthMerchant.businessName || oauthMerchant.merchantId}`
     );
     return new SquareClient({
-      token: oauthTokens.accessToken,
+      token: oauthMerchant.accessToken,
       environment: SquareEnvironment.Production,
     });
   }
@@ -73,9 +73,9 @@ export async function getLocationId(isSandbox: boolean): Promise<string> {
   }
 
   // Production: try OAuth first
-  const oauthTokens = await getCurrentMerchantTokens(false);
-  if (oauthTokens?.locationId) {
-    return oauthTokens.locationId;
+  const oauthMerchant = await getCurrentMerchant(false);
+  if (oauthMerchant?.locationId) {
+    return oauthMerchant.locationId;
   }
 
   if (!PROD_LOCATION_ID) {
@@ -298,13 +298,13 @@ export async function getConfig(isSandbox: boolean): Promise<{
     const locationId = await getLocationId(isSandbox);
 
     if (!isSandbox) {
-      const tokens = await getCurrentMerchantTokens(false);
-      if (tokens) {
+      const merchant = await getCurrentMerchant(false);
+      if (merchant) {
         return {
           configured: true,
           environment: 'production',
           locationId,
-          merchantName: tokens.businessName,
+          merchantName: merchant.businessName ?? undefined,
         };
       }
     }
