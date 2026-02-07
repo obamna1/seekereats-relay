@@ -68,21 +68,68 @@ function isSandbox(req: Request): boolean {
 
 /**
  * GET /restaurants - List all connected Square merchants as restaurants
+ *
+ * SANDBOX MODE: Returns virtual restaurant from env vars (SQUARE_ACCESS_TOKEN)
+ * PRODUCTION MODE: Returns OAuth-connected merchants from PostgreSQL
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const sandbox = isSandbox(req);
     console.log(`[Restaurants] Fetching restaurant list (sandbox: ${sandbox})`);
 
-    // Get all active merchants from PostgreSQL
-    const merchants = await listMerchants(sandbox);
+    // ================================================================
+    // SANDBOX MODE: Return restaurant built from environment variables
+    // ================================================================
+    if (sandbox) {
+      const accessToken = process.env.SQUARE_ACCESS_TOKEN;
+      const locationId = process.env.SQUARE_LOCATION_ID;
+
+      if (!accessToken || !locationId) {
+        console.error(
+          '[Restaurants] Sandbox mode but SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID not set'
+        );
+        return res.status(500).json({
+          success: false,
+          error: 'Sandbox not configured: missing SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID',
+        });
+      }
+
+      // Fetch location details from Square using env var token
+      const locationDetails = await getLocationDetails(accessToken, locationId, true);
+
+      const sandboxRestaurant: RestaurantData = {
+        id: 'sandbox',
+        merchantId: 'sandbox',
+        name: 'Sandbox Test Restaurant',
+        image: locationDetails.logoUrl || PLACEHOLDER_IMAGE,
+        address: locationDetails.address,
+        city: locationDetails.city,
+        deliveryTime: '15-25 min',
+        deliveryFee: 0, // Free delivery in sandbox
+        categories: ['Test', 'Sandbox'],
+        isSandbox: true,
+      };
+
+      console.log('[Restaurants] Returning sandbox restaurant');
+      return res.json({
+        success: true,
+        data: [sandboxRestaurant],
+        environment: 'sandbox',
+      });
+    }
+
+    // ================================================================
+    // PRODUCTION MODE: Return OAuth-connected merchants from PostgreSQL
+    // ================================================================
+    const merchants = await listMerchants(false);
     const activeMerchants = merchants.filter((m) => m.isActive);
 
     if (activeMerchants.length === 0) {
       return res.json({
         success: true,
         data: [],
-        message: 'No restaurants connected yet',
+        message: 'No restaurants connected yet. Have restaurants connect via OAuth.',
+        environment: 'production',
       });
     }
 
