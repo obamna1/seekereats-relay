@@ -199,8 +199,47 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const sandbox = isSandbox(req);
+    console.log(`[Restaurants] Fetching restaurant ${id} (sandbox: ${sandbox})`);
 
-    // Find merchant by internal ID
+    // ================================================================
+    // SPECIAL CASE: id='sandbox' is a virtual restaurant from env vars
+    // ================================================================
+    if (id === 'sandbox' && sandbox) {
+      const accessToken = process.env.SQUARE_ACCESS_TOKEN;
+      const locationId = process.env.SQUARE_LOCATION_ID;
+
+      if (!accessToken || !locationId) {
+        return res.status(500).json({
+          success: false,
+          error: 'Sandbox not configured: missing SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID',
+        });
+      }
+
+      const locationDetails = await getLocationDetails(accessToken, locationId, true);
+
+      const sandboxRestaurant: RestaurantData = {
+        id: 'sandbox',
+        merchantId: 'sandbox',
+        name: 'Sandbox Test Restaurant',
+        image: locationDetails.logoUrl || PLACEHOLDER_IMAGE,
+        address: locationDetails.address,
+        city: locationDetails.city,
+        deliveryTime: '15-25 min',
+        deliveryFee: 0,
+        categories: ['Test', 'Sandbox'],
+        isSandbox: true,
+      };
+
+      console.log('[Restaurants] Returning sandbox restaurant details');
+      return res.json({
+        success: true,
+        data: sandboxRestaurant,
+      });
+    }
+
+    // ================================================================
+    // PRODUCTION: Look up merchant by internal DB ID
+    // ================================================================
     const { getMerchantById } = await import('../services/merchantService');
     const merchant = await getMerchantById(id);
 
