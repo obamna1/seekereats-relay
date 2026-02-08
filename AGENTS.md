@@ -103,6 +103,8 @@ npm run db:studio  # Open Prisma Studio GUI
 
 <!-- Add new entries at the top, format: YYYY-MM-DD: Description -->
 
+- **2026-02-08**: Square Orders API requires `variationId` (from `item.variations[0].id`), NOT catalog item ID. See [docs/SQUARE_SANDBOX_DEBUG.md](../seeker-eats/docs/SQUARE_SANDBOX_DEBUG.md).
+
 ## Common Mistakes to Avoid
 
 - Don't forget to run `npm run db:push` after changing `prisma/schema.prisma`
