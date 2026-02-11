@@ -48,3 +48,4 @@ next-env.d.ts
 data/merchants.json
 data/oauth-states.json
 env_check.json
+dist/
