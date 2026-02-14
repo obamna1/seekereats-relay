@@ -173,9 +173,9 @@ router.post('/order-call', async (req: Request, res: Response) => {
       return;
     }
 
-    // Override phone number to verified Twilio number for testing
-    const actualPhoneNumber = '+14134741348';
-    console.log('[PHONE CALL] Overriding phone number - Requested:', phone_number, '-> Calling:', actualPhoneNumber);
+    // Use the provided phone number, or fall back to verified Twilio number from env
+    const actualPhoneNumber = process.env.TWILIO_TEST_PHONE_NUMBER || phone_number;
+    console.log('[PHONE CALL] Using phone number:', actualPhoneNumber);
 
     // Create TwiML message with text-to-speech
     const message = `Hello, I would like to place an order for ${order_details}${dropoff_address ? `, delivered to ${dropoff_address}` : ''}`;

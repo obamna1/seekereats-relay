@@ -1,16 +1,50 @@
+# Dependencies
 node_modules/
 dist/
+
+# Environment
 .env
 .env.local
+.env.test
+.env.production
 .env.*.local
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+
+# Database
 .prisma/
-.claude/
 prisma/dev.db
-eas.json
+*.sqlite
+
+# Build artifacts
+artifacts/
+*.apk
+
+# Signing keys
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# Agent/AI config (local only)
+.agent/
+.claude/
+AGENTS.md
+
+# EAS build
+dapp-store-build/
+dapp-store-signing-keys/

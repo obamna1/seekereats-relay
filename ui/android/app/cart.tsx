@@ -132,10 +132,10 @@ export default function CartScreen() {
     updateDeliveryDetails({
       pickup_address: '123 Restaurant St, San Francisco, CA',
       pickup_business_name: 'Burger King',
-      pickup_phone_number: '+14134741348',
+      pickup_phone_number: '+15555550100',
       dropoff_address: '456 User Ave, San Francisco, CA',
       dropoff_business_name: 'User Home',
-      dropoff_phone_number: '+14134741348',
+      dropoff_phone_number: '+15555550100',
     });
   };
 

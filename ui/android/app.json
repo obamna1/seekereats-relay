@@ -20,6 +20,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.seekereats.app",
       "permissions": [
+        "INTERNET",
         "INTERNET"
       ]
     },
@@ -60,7 +61,15 @@
     },
     "extra": {
       "router": {},
-      "eas": {}
+      "eas": {
+        "projectId": "a0fe9570-938d-466e-a516-267d9561a699"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a0fe9570-938d-466e-a516-267d9561a699"
     }
   }
 }

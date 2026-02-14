@@ -23,7 +23,7 @@ async function main() {
       cuisine: "Italian",
       address:
         "Ross School of Business RM0230, 701 Tappan Ave, Ann Arbor, MI 48109",
-      phone: "+17349955095",
+      phone: "+15555550100",
       priority: 1,
       menuItems: {
         create: [

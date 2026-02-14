@@ -19,6 +19,13 @@
     "production": {
       "extends": "base",
       "autoIncrement": true
+    },
+    "dapp-store": {
+      "extends": "base",
+      "channel": "production",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {
