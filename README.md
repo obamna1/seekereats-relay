@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://typescriptlang.org)
 [![React Native](https://img.shields.io/badge/React%20Native-0.81-61DAFB?logo=react)](https://reactnative.dev)
 
-Seeker Eats is a DoorDash-style food delivery app where customers pay with **USDC on Solana**. Restaurants receive orders through their existing **Square POS** system, deliveries are fulfilled by **DoorDash Drive**, and order confirmations happen via automated **Twilio voice calls** — no crypto knowledge required from restaurants or customers.
+Seeker Eats is a food delivery app where customers pay with **USDC on Solana**. Restaurants receive orders through their existing **Square POS** system — no crypto knowledge required from restaurants or customers. The platform also integrates **DoorDash Drive** and **Twilio Voice** as fallback systems for delivery logistics and order confirmation when needed.
 
 ---
 
@@ -42,13 +42,13 @@ Food delivery platforms charge restaurants 15-30% commission fees. Crypto paymen
 
 Seeker Eats bridges the gap by integrating with systems restaurants already use:
 
-- **Square** for menus and order management — restaurants change nothing
-- **Solana USDC** for payments — settled instantly, near-zero fees
+- **Square** for menus, orders, and payments — restaurants change nothing about their workflow
+- **Solana USDC** for customer payments — settled instantly, near-zero fees
 - **Privy** for embedded wallets — users sign in with Google, wallet is created automatically
-- **DoorDash Drive** for delivery logistics — real drivers, real tracking
-- **Twilio** for order confirmation — automated calls to the restaurant, press 1 to accept
+- **DoorDash Drive** *(fallback)* for delivery logistics when restaurants don't have their own drivers
+- **Twilio Voice** *(fallback)* for automated order confirmation calls when Square notifications aren't sufficient
 
-The restaurant never touches crypto. The customer never sees a seed phrase.
+The restaurant never touches crypto. The customer never sees a seed phrase. The primary order flow goes entirely through Square — DoorDash and Twilio are pluggable fallback systems.
 
 ---
 
@@ -63,11 +63,12 @@ The restaurant never touches crypto. The customer never sees a seed phrase.
         |
 4. Pay              USDC transferred on Solana DevNet to merchant wallet
         |
-5. Confirm          Twilio calls the restaurant — they press 1 to accept
+5. Confirm          Order submitted to Square POS (restaurant sees it in their dashboard)
+        |                \_ Fallback: Twilio calls the restaurant for confirmation
         |
-6. Deliver          DoorDash Drive dispatches a driver with live tracking
+6. Deliver          Restaurant handles delivery (or DoorDash Drive as fallback)
         |
-7. Track            Real-time status: Preparing → Picked Up → Delivered
+7. Track            Real-time status updates in app
 ```
 
 ---
@@ -86,11 +87,11 @@ The restaurant never touches crypto. The customer never sees a seed phrase.
 │              Relay Backend (Node.js/Express)             │
 │                   Hosted on Railway                      │
 ├─────────────┬──────────────┬──────────────┬─────────────┤
-│   Square    │   DoorDash   │    Twilio    │   Solana    │
-│   OAuth +   │   Drive API  │  Voice API   │  DevNet     │
-│   Catalog   │              │              │  Validator   │
-│   Orders    │  Quotes      │  Order calls │  On-chain   │
-│   Payments  │  Tracking    │  DTMF input  │  tx verify  │
+│   Square    │   Solana     │  DoorDash    │   Twilio    │
+│   OAuth +   │   DevNet     │  Drive API   │  Voice API  │
+│   Catalog   │   Validator  │  (fallback)  │  (fallback) │
+│   Orders    │   On-chain   │  Quotes      │  Order calls│
+│   Payments  │   tx verify  │  Tracking    │  DTMF input │
 └─────────────┴──────────────┴──────────────┴─────────────┘
 ```
 
@@ -101,8 +102,8 @@ The restaurant never touches crypto. The customer never sees a seed phrase.
 | **Payments** | @solana/web3.js + @solana/spl-token | USDC transfers on DevNet |
 | **Backend** | Express.js on Railway | API relay and orchestration |
 | **Menus** | Square SDK (OAuth) | Live restaurant catalog sync |
-| **Delivery** | DoorDash Drive API | Delivery quotes, dispatch, tracking |
-| **Voice** | Twilio Voice API | Automated order confirmation calls |
+| **Delivery** | DoorDash Drive API | Fallback delivery quotes, dispatch, tracking |
+| **Voice** | Twilio Voice API | Fallback automated order confirmation calls |
 | **Database** | PostgreSQL (Prisma) | Merchants, orders, users |
 | **Styling** | NativeWind (Tailwind CSS) | Responsive mobile UI |
 
@@ -119,11 +120,11 @@ Checkout creates a real SPL token transfer on Solana DevNet. The app validates w
 ### Square POS Integration
 Restaurants connect via OAuth. Their Square catalog (menu items, prices, categories, images) syncs automatically. Orders flow back into Square. Restaurants manage everything from their existing dashboard.
 
-### DoorDash Drive Delivery
-Real delivery quotes with estimated pickup/dropoff times. After the restaurant accepts, a DoorDash driver is dispatched. Live status tracking (preparing, picked up, en route, delivered).
+### DoorDash Drive Delivery (Fallback)
+For restaurants without their own delivery drivers, DoorDash Drive provides real delivery quotes with estimated pickup/dropoff times, driver dispatch, and live status tracking.
 
-### Twilio Voice Order Confirmation
-After checkout, the backend calls the restaurant's phone number with a TwiML-generated message reading the order details. The restaurant presses:
+### Twilio Voice Order Confirmation (Fallback)
+When Square POS notifications aren't sufficient, the backend can call the restaurant's phone number with a TwiML-generated message reading the order details. The restaurant presses:
 - **1** — Accept (driver dispatched)
 - **2** — Reject (customer notified)
 - **3** — Repeat the order
@@ -137,7 +138,7 @@ For testing: all prices set to $0.01 USDC. Real Solana transactions still execut
 
 ### Download the APK
 
-> **[Download seeker-eats.apk](https://github.com/YOUR_USERNAME/seeker-eats/releases/latest)**
+> **[Download seeker-eats.apk](https://github.com/obamna1/seekereats-relay/releases/latest)**
 >
 > Install on any Android device (enable "Install from unknown sources").
 
@@ -150,7 +151,7 @@ For testing: all prices set to $0.01 USDC. Real Solana transactions still execut
    - [SPL Token Faucet](https://spl-token-faucet.com/) — get DevNet USDC (for payments)
 4. **Browse restaurants** and add items to your cart
 5. **Checkout** — pay with USDC, watch the Solana transaction confirm
-6. **Track delivery** — see real-time DoorDash status updates
+6. **Track delivery** — see real-time status updates
 
 > Demo mode is enabled by default — all prices are $0.01 USDC.
 
@@ -315,7 +316,7 @@ To get test funds:
 - [Privy](https://privy.io) — Embedded wallet infrastructure
 - [Expo](https://expo.dev) — React Native framework
 - [Square](https://squareup.com) — Restaurant POS integration
-- [DoorDash Drive](https://www.doordash.com/engineering/drive/) — Delivery logistics
-- [Twilio](https://twilio.com) — Voice API for order confirmation
+- [DoorDash Drive](https://www.doordash.com/engineering/drive/) — Fallback delivery logistics
+- [Twilio](https://twilio.com) — Fallback voice order confirmation
 - [Railway](https://railway.app) — Backend hosting
 - [Prisma](https://prisma.io) — Database ORM
